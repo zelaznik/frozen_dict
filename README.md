@@ -1,4 +1,4 @@
--  Creates a class FrozenDict that behaves like a dictionary, except all the mutable methods are removed.
+-  Creates a class FrozenDict that behaves like dict, but all mutable methods are removed.
 -  Compatible with both Python2 and Python3.
 -  A temp dict is created, the "read-only" bound methods are saved, then the temp dict is deleted.
 -  Like a tuple, FrozenDict is hashable if and only if all its items are hashable
