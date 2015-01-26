@@ -1,8 +1,5 @@
--  Creates a class FrozenDict that behaves like dict, but all mutable methods are removed.
--  Compatible with both Python2 and Python3.
--  A temp dict is created, the "read-only" bound methods are saved, then the temp dict is deleted.
--  Like a tuple, FrozenDict is hashable if and only if all its items are hashable
--  All the equality and comparison operators behave just like a normal dictionary.
--  FrozenDict is bidirectional, dict(FrozenDict(*args, **kw)) == dict(*args, **kw)
--  Methods such as copy() and fromkeys() return an instance of FrozenDict
--  FrozenDict is NOT a subclass of dict, so users cannot do a workaround such as dict.__delitem__(obj, key)
+Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
+A FrozenDict is a subclass of tuple, and it contains two main entries.
+One entry is a tuple of all the items sorted by hash value.
+The other entry is a lookup table of those hashes.
+A FrozenDict is like a tuple.  It's hashable if and only if its values are hashable.
