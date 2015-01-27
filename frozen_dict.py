@@ -6,6 +6,12 @@ elif 3 / 2 == 1.5:
     __version__ = 3
     imap = map
     from functools import reduce
+    xrange = range
+
+# collections.Mapping seems like a pretty useless base class
+# but the python community seems to love it, so I'll register
+# FrozenDict as a subclass of Mapping.
+from collections import Mapping
 
 import itertools as it
 from operator import itemgetter, methodcaller, attrgetter
@@ -40,7 +46,7 @@ class Group(frozenset):
     def __iter__(self):
         return self.items()
     def items(self):
-        return map(pair_getter, f_iter(self))
+        return imap(pair_getter, f_iter(self))
     def __hash__(self):
         frz = frozenset(self.items())
         return hash(frz)
@@ -195,25 +201,14 @@ class FrozenDict(tuple):
         return map(itemgetter(0), self.items())
         
     def __getitem__(self, key):
-        if not self:
-            raise KeyError(key)
-
-        x = hash(key)
-        lkp = tuple.__getitem__(self, 0)
-
-        if (x < lkp[0]) or (x > lkp[-1]):
-            raise KeyError(key)
-
-        idx = bisect_left(lkp, x)
-        if lkp[idx] != x:
-            raise KeyError(key)
-
-        grp = tuple.__getitem__(self, 1)[idx]
-        for k0, v0 in grp:
-            if k0 != key:
-                continue
-            return v0
-
+        try:
+            x = hash(key)
+            idx = bisect_left(self._hashes, x)
+            for k0, v0 in self._groups[idx]:
+                if k0 == key:
+                    return v0
+        except IndexError:
+            pass
         raise KeyError(key)
 
     def __contains__(self, key):
@@ -250,6 +245,10 @@ class FrozenDict(tuple):
     def fromkeys(cls, keys, value):
         return cls(dict.fromkeys(keys, value))
 
+
+if __version__ == 3:
+    Mapping.register(FrozenDict)
+
 if __version__ == 2:
     iterkey_getter = col(0)
     itervalue_getter = col(1)
@@ -260,16 +259,16 @@ if __version__ == 2:
         tuple_getter = tuple.__getitem__
         
         def __iter__(self):
-            return imap(itemgetter(0), self.items())
+            return imap(itemgetter(0), self.iteritems())
 
         def iterhashes(self):
-            return tuple.__iter__(self._hashes)
+            return iter(tuple.__iter__(self._hashes))
     
         def itergroups(self):
-            return tuple.__iter__(self._groups)
+            return iter(tuple.__iter__(self._groups))
     
         def iteritems(self):
-            return from_iterable(self.itergroups())
+            return iter(from_iterable(self.itergroups()))
     
         def iterkeys(self):
             return imap(itemgetter(0), self.iteritems())
@@ -279,6 +278,9 @@ if __version__ == 2:
 
         def hashes(self):
             return list(self.iterhashes())
+            
+        def groups(self):
+            return list(self.itergroups())
             
         def keys(self):
             return list(self.iterkeys())
@@ -303,3 +305,9 @@ if __version__ == 2:
     py2.update({k: dct[k] for k in dct})
     
     FrozenDict = type('FrozenDict', (tuple,), py2)
+    Mapping.register(FrozenDict)
+
+if __name__ == '__main__':
+    frz = FrozenDict(imap(lambda i: (str(i),i), xrange(10**6)))
+    dct = dict(imap(lambda i: (str(i),i), xrange(10**6)))
+    
