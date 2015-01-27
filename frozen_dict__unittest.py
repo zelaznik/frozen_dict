@@ -1,4 +1,4 @@
-from hash_table import FrozenDict
+from frozen_dict import FrozenDict
 import unittest
 from collections import namedtuple
 
@@ -198,7 +198,7 @@ class Test_FrozenDict(unittest.TestCase):
             self.assertEqual({u.frz}, {u.frz, FrozenDict(u.orig.items())})
             self.assertNotEqual({u.frz}, {u.frz, FrozenDict(u.plus_one.items())})
 
-    def test_frozendict_operators__eq__and__hash__(self):
+    def test_frozendict_behavior_inside_a_set(self):
         for u in self.units:
             for a in self.units:
                 try:
@@ -224,10 +224,11 @@ class Test_FrozenDict(unittest.TestCase):
             self.assertEqual(f, d)
 
     def test_frozendict_method_get(self):
-        for u in self.units:
-            for k,v in u.orig.items():
-                self.assertEqual(u.frz.get(k), v)
-            self.assertEqual(u.frz.get(u.aggKey), None)
+        for alt in (None, 'alt0','alt1'):
+            for u in self.units:
+                for k,v in u.orig.items():
+                    self.assertEqual(u.frz.get(k), v)
+                self.assertEqual(u.frz.get(u.aggKey, alt), alt)
             
     def test_frozendict_generator_consistency(self):
         #Make sure the keys/values/and items all yield their results
