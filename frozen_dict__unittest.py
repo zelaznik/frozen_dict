@@ -193,10 +193,15 @@ class Test_FrozenDict(unittest.TestCase):
         for u in self.units:
             try:
                 hash(tuple(u.orig.values()))
+                h = True
             except TypeError:
-                continue
-            self.assertEqual({u.frz}, {u.frz, FrozenDict(u.orig.items())})
-            self.assertNotEqual({u.frz}, {u.frz, FrozenDict(u.plus_one.items())})
+                h = False
+            if h:
+                self.assertEqual({u.frz}, {u.frz, FrozenDict(u.orig.items())})
+                self.assertNotEqual({u.frz}, {u.frz, FrozenDict(u.plus_one.items())})
+            else:
+                s = set()
+                self.assertRaises(TypeError, s.add, u.frz)
 
     def test_frozendict_behavior_inside_a_set(self):
         for u in self.units:
