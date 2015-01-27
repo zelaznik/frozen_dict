@@ -75,7 +75,36 @@ class Test_FrozenDict(unittest.TestCase):
 
         #Add a second version with addition items that have hash collisions
         orig = orig.copy()
-        orig.update(collider(2))
+        coll = collider(2)
+        orig.update(coll)
+        frz = FrozenDict(orig)
+        thaw = dict(frz)
+        aggKey, aggValue, p1 = self.plus_one(orig)
+        u = frz_nt(orig,frz,p1,thaw,aggKey,aggValue)
+        self.units.append(u)
+
+        #Add a third version with addition items that have hash collisions
+        #but one in which one of the values included in the hash collision
+        #itself is unhashable.
+        orig = orig.copy()
+        coll = collider(2)
+        for k in coll:
+            coll[k] = []
+            break
+        orig.update(coll)
+        frz = FrozenDict(orig)
+        thaw = dict(frz)
+        aggKey, aggValue, p1 = self.plus_one(orig)
+        u = frz_nt(orig,frz,p1,thaw,aggKey,aggValue)
+        self.units.append(u)
+
+        #Add a fourth version which includes an unorderable item
+        orig = orig.copy()
+        coll = collider(2)
+        for k in coll:
+            coll[k] = object()
+            break
+        orig.update(coll)
         frz = FrozenDict(orig)
         thaw = dict(frz)
         aggKey, aggValue, p1 = self.plus_one(orig)
@@ -132,8 +161,8 @@ class Test_FrozenDict(unittest.TestCase):
 
     def test_frozendict_operator__eq__(self):
         for u in self.units:
-            self.assertEqual((u.orig == u.thaw), True)
-            self.assertEqual((u.plus_one == u.thaw), False)
+            self.assertEqual(u.orig, u.thaw)
+            self.assertNotEqual(u.plus_one, u.thaw)                
             
     def test_frozendict_operator__ne__(self):
         for u in self.units:
@@ -168,6 +197,18 @@ class Test_FrozenDict(unittest.TestCase):
                 continue
             self.assertEqual({u.frz}, {u.frz, FrozenDict(u.orig.items())})
             self.assertNotEqual({u.frz}, {u.frz, FrozenDict(u.plus_one.items())})
+
+    def test_frozendict_operators__eq__and__hash__(self):
+        for u in self.units:
+            for a in self.units:
+                try:
+                    s = {u.frz, a.frz}
+                except TypeError:
+                    self.assertEqual((u.orig == a.orig), (u.frz == a.frz))
+                else:
+                    f = frozenset
+                    t = set([f(u.frz.items()), f(a.frz.items())])
+                    self.assertEqual(len(s), len(t))
 
     def test_frozendict_operator__contains__(self):
         for u in self.units:
