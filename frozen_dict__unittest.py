@@ -1,290 +1,313 @@
-from hash_table import FrozenDict
-import unittest
-from collections import namedtuple
-
-frz_nt = namedtuple('FrozenDictTestUnit',('orig','frz','plus_one','thaw','aggKey','aggValue'))
 if 3 / 2 == 1:
-    version = 2
+    __version__ = 2
+    from itertools import imap
+
 elif 3 / 2 == 1.5:
-    version = 3
-            
-class Test_FrozenDict(unittest.TestCase):
-    @staticmethod
-    def plus_one(orig):
-        #Plus one is the original dictionary with one extra item
-        #that by definition cannot be contained in the original
-        #aggKey is the collection of all original keys.
-        #aggValue is the collection of all original values.
-        aggKey = tuple(orig.keys())
-        aggValue = tuple(orig.values())
-        plus_one = dict(orig)
-        plus_one[aggKey] = aggValue
-        plus_one = type(orig)(plus_one)
-        return aggKey, aggValue, plus_one
+    __version__ = 3
+    imap = map
+    from functools import reduce
+    xrange = range
 
-    def add_unit(self, *args, **kw):
-        ''' Each unit contains a reulgar dictionary (orig),
-            its frozen counterpart (frz), a regular dictionary
-            derived from the frozen one (thaw)
-            and a regular dictionary with one additional item (pl).'''
-        orig = dict(*args, **kw)
-        frz = FrozenDict(*args, **kw)
-        thaw = dict(frz)
-        aggKey, aggValue, p1 = self.plus_one(orig)
-        u = frz_nt(orig,frz,p1,thaw,aggKey,aggValue)
-        self.units.append(u)
+# collections.Mapping seems like a pretty useless base class
+# but the python community seems to love it, so I'll register
+# FrozenDict as a subclass of Mapping.
+from collections import Mapping
 
-    def setUp(self):
-        self.item_recursion_max = 10
-        self.units = []
-        self.add_unit()
-        self.add_unit({})
-        self.add_unit(x=1)
-        self.add_unit({'x': 1})
-        self.add_unit(x=3,y=4,z=5)
-        self.add_unit({'x': 3,'y': 4,'z': 5})
-        self.add_unit({'my_list': []})
-        self.add_unit(my_list = [])
-        self.add_unit(my_list = [], my_object = object())
-        self.add_unit({'my_list': [], 'my_object': object()})
-    
-    def test_frozendict_reversible(self):
-        for u in self.units:
-            self.assertEqual(u.thaw, u.orig)                
-            f = FrozenDict(u.thaw)
-            try:
-                s = {f,u.frz}
-            except TypeError:
-                continue
-            self.assertEqual(len(s), 1)
+import itertools as it
+from operator import itemgetter, methodcaller, attrgetter
+from bisect import bisect_left
+
+from_iterable = it.chain.from_iterable
+
+flipped = itemgetter(1,0)
+pop_first = methodcaller('pop', 0)
+pop_last = methodcaller('pop', -1)
+hash_caller = methodcaller('__hash__')
+
+key_getter = attrgetter('key')
+val_getter = attrgetter('value')
+pair_getter = attrgetter('pair')
+
+class Item(tuple):
+    key   = property(itemgetter(0))
+    value = property(itemgetter(1))
+    pair  = property(itemgetter(0,1))
+    __slots__ = ()
+    def __hash__(self):
+        return hash(self.key)
         
-    def test_frozendict_operator__repr__(self):
-        #In many cases eval(repr(obj)) == obj
-        #We're testing that if the above equality holds for dict,
-        #that it also holds for FrozenDict
-        def func(obj):
-            try:
-                return obj == eval(repr(obj))
-            except Exception:
-                return False
-        for u in self.units:
-            self.assertEqual(func(u.frz), func(u.orig))
+f_iter = frozenset.__iter__
+class Group(frozenset):
+    ''' Container to store multiple items during a hash collision.'''
+    __slots__ = ()
+    def __new__(cls, items):
+        wrapped = map(Item, items)
+        return frozenset.__new__(cls, wrapped)
+    def __iter__(self):
+        return self.items()
+    def items(self):
+        return imap(pair_getter, f_iter(self))
+    def __hash__(self):
+        frz = frozenset(self.items())
+        return hash(frz)
+    def __repr__(self):
+        return frozenset.__repr__(self)
 
-    def test_frozendict_operator__eq__(self):
-        for u in self.units:
-            self.assertEqual((u.orig == u.thaw), True)
-            self.assertEqual((u.plus_one == u.thaw), False)
-            
-    def test_frozendict_operator__ne__(self):
-        for u in self.units:
-            self.assertEqual((u.orig != u.thaw), False)
-            self.assertEqual((u.plus_one != u.thaw), True)
-            
-    def test_frozendict_operator__len__(self):
-        for u in self.units:
-            self.assertEqual(len(u.orig),len(u.frz))
-            self.assertNotEqual(len(u.plus_one),len(u.frz))
-            
-    def test_frozendict_operator__iter__(self):
-        for u in self.units:
-            self.assertEqual(set(iter(u.orig)),set(iter(u.frz)))
-            self.assertNotEqual(set(iter(u.plus_one)),set(iter(u.frz)))
+t_iter = tuple.__iter__
+class Single(tuple):
+    ''' The singleton counterpart to "Group".  This is a regular tuple,
+        except the iteration is overloaded so that (key, value)
+        actually iterates as though it were ((key, value),)
+        
+        This is done because the method FrozenDict.__getitem__
+        loops through either a Single or Group looking for a
+        matching key.
+        
+        I could store single items inside single-element frozensets
+        but that would be a huge waste of space and resources.
+       
+        In testing 5 million hashes I only found collisions in 1/1400 items.
+    '''
+      
+    key   = property(itemgetter(0))
+    value = property(itemgetter(1))
+    pair  = property(itemgetter(0,1))
+    __slots__ = ()
+    def __iter__(self):
+        return t_iter((self.pair,))
+    def __len__(self):
+        return 1
+    def __repr__(self):
+        return 'Single(%r, %r)' % self.pair
 
-    def test_frozendict_operator__getitem__(self):
-        for u in self.units:
-            for k,v in u.orig.items():
-                self.assertEqual(u.frz[k], v)
-            self.assertRaises(KeyError,u.frz.__getitem__,u.aggKey)
+def col(i):
+    # We can't use itemgetter when we've overloaded
+    # __getitem__ so we need to bind the method
+    # directly from tuple.
+    g = tuple.__getitem__
+    def _col(self):
+        return g(self,i)
+    return _col
 
-    def test_frozendict_operator__bool__(self):
-        for u in self.units:
-            assert (bool(u.orig) == bool(u.frz))
-            
-    def test_frozendict_operator__hash__(self):
-        for u in self.units:
-            try:
-                hash(tuple(u.orig.values()))
-            except TypeError:
-                continue
-            self.assertEqual({u.frz}, {u.frz, FrozenDict(u.orig.items())})
-            self.assertNotEqual({u.frz}, {u.frz, FrozenDict(u.plus_one.items())})
+doc_str = '''\
+Behaves in most ways like a regular dictionary, except that it's immutable.
+It differs from other implementations because it doesn't subclass "dict".
+Instead it subclasses "tuple" which guarantees immutability, and the items
+are sorted based off the hash of the key, which maintains fast lookup times.
 
-    def test_frozendict_operator__contains__(self):
-        for u in self.units:
-            for key in u.orig:
-                self.assertIn(key,u.frz)
-            self.assertNotIn(u.aggKey,u.frz)
-            
-    def test_frozendict_method_fromkeys(self):
-        for u in self.units:
-            f = u.frz.fromkeys(tuple(u.frz), u.aggValue)
-            d = u.orig.fromkeys(tuple(u.orig), u.aggValue)
-            self.assertIs(type(f), type(u.frz))
-            self.assertEqual(f, d)
+FrozenDict instances are created with the same arguments used to initialize
+regular dictionaries, and has all the same methods.
+    [in]  >>> f = FrozenDict(x=3,y=4,z=5)
+    [in]  >>> f['x']
+    [out] >>> 3
+    [in]  >>> f['a'] = 0
+    [out] >>> TypeError: 'FrozenDict' object does not support item assignment
 
-    def test_frozendict_method_get(self):
-        for u in self.units:
-            for k,v in u.orig.items():
-                self.assertEqual(u.frz.get(k), v)
-            self.assertEqual(u.frz.get(u.aggKey), None)
-            
-    def test_frozendict_generator_consistency(self):
-        #Make sure the keys/values/and items all yield their results
-        #in orders that are consistent with each other.
-        #frz[list(frz.keys())[x]] == frz[list(frz.values())][x]
-        #for all 0 <= x <= len(frz)
-        for u in self.units:
-            zipped = zip(u.frz.keys(), u.frz.values(), u.frz.items())
-            for key, value, item in zipped:
-                self.assertEqual(item, (key, value))
+FrozenDict can accept un-hashable values, but FrozenDict is only hashable if its values are hashable.
+    [in]  >>> f = FrozenDict(x=3,y=4,z=5)
+    [in]  >>> hash(f)
+    [out] >>> 646626455
+    [in]  >>> g = FrozenDict(x=3,y=4,z=[])
+    [in]  >>> hash(g)
+    [out] >>> TypeError: unhashable type: 'list'
 
-    def test_frozendict_fails_operator__setitem__(self):
-        def func(obj, key, value):
-            obj[key] = value
-        for u in self.units:
-            self.assertRaises(TypeError,func,u.frz,u.aggKey,u.aggValue)
-            
-    def test_frozendict_fails_operator__delitem__(self):
-        def func(obj, key):
-            del obj[key]
-        for u in self.units:
-            for key in u.frz:
-                self.assertRaises(TypeError,func,u.frz,key)
-                
-    def test_frozendict_fails_method_clear(self):
-        def func(obj):
-            obj.clear()
-        for u in self.units:
-            self.assertRaises(AttributeError,func,u.frz)
-            
-    def test_frozendict_fails_method_update(self):
-        def func(obj, other):
-            obj.update(other)
-        for u in self.units:
-            self.assertRaises(AttributeError,func,u.frz,{u.aggKey:u.aggValue})
-            
-    def test_frozendict_fails_method_pop(self):
-        def func(obj, key):
-            return obj.pop(key)
-        for u in self.units:
-            self.assertRaises(AttributeError,func,u.frz,u.aggKey)
-            
-    def test_frozendict_fails_method_popitem(self):
-        def func(obj):
-            return obj.popitem()
-        for u in self.units:
-            self.assertRaises(AttributeError,func,u.frz)
+FrozenDict interacts with dictionary objects as though it were a dict itself.
+    [in]  >>> original = dict(x=3,y=4,z=5)
+    [in]  >>> frozen = FrozenDict(x=3,y=4,z=5)
+    [in]  >>> original == frozen
+    [out] >>> True
 
-    def test_frozendict_fails_method_setdefault(self):
-        def func(obj, val):
-            obj.setdefault(val)
-        for u in self.units:
-            self.assertRaises(AttributeError,func,u.frz,u.aggKey)
-            
-    def test_frozendict_fails_dict_operator__setitem__(self):
-        for u in self.units:
-            self.assertRaises(TypeError, dict.__setitem__, u.frz, u.aggKey, u.aggValue)
+FrozenDict supports bi-directional conversions with regular dictionaries.
+    [in]  >>> original = {'x': 3, 'y': 4, 'z': 5}
+    [in]  >>> FrozenDict(original)
+    [out] >>> FrozenDict({'x': 3, 'y': 4, 'z': 5})
+    [in]  >>> dict(FrozenDict(original))
+    [out] >>> {'x': 3, 'y': 4, 'z': 5}   '''
 
-    def test_frozendict_fails_dict_operator__delitem__(self):
-        for u in self.units:
-            self.assertRaises(TypeError, dict.__delitem__, u.frz, u.aggKey, u.aggValue)
-
-    def test_frozendict_fails_dict_method_pop(self):
-        for u in self.units:
-            for key in u.frz.keys():
-                self.assertRaises(TypeError, dict.pop, u.frz, key)
-    
-    def test_frozendict_fails_dict_method_popitem(self):
-        for u in self.units:
-            for key in u.frz.keys():
-                self.assertRaises(TypeError, dict.popitem, u.frz)
-                
-    def test_frozendict_fails_dict_method_setdefaults(self):
-        for u in self.units:
-            self.assertRaises(TypeError, dict.setdefault, u.frz, u.aggKey)
+class FrozenDict(tuple):
+    __doc__ = doc_str
+    __slots__ = ()
+    _hashes = property(col(0))
+    _groups  = property(col(1))
 
     @staticmethod
-    def __hash_sorter(dct):
-        f = lambda i: hash(i[0])
-        items = dct.items()
-        items = sorted(items, key=f)
-        lkp = {}
-        for i, (k,v) in enumerate(items):
-            lkp[('keys',k)] = i
-            lkp[('values',v)] = i
-            lkp[('items',(k,v))] = i
-        return lkp
+    def item_adder(dct, item):
+        ''' This is an agg function which groups items by the hash of the key.'''
+        h = hash(item[0])
+        if h not in dct:
+            dct[h] = [item]
+        else:
+            dct[h].append(item)
+        return dct
 
-    def __test_same_as_regular_dict_sorted_methods(self, method_name):
-        for u in self.units:
+    @staticmethod
+    def grouper(dct, h):
+        ''' Unpacks the items for each hash value.  The groups that have 
+            only one item are stored in a subclass of tuple.
+            The ones with multiple items are put into a subclass of frozenset.'''
+        grp = dct[h]
+        if len(grp) == 1:
+            ''' Most groups contain only a single item
+                So we simply unpack it from its original
+                container which speeds up lookup time.'''
+            grp = Single(grp[0])
+        else:
+            ''' In the .01% of cases where a hash collision has occurred
+                The items are stored inside a subclass of frozenset.'''
+            grp = Group(grp)
+        dct[h] = grp
+        return dct
+
+    def __new__(cls, orig = {}, **kw):
+        if orig and kw:
+            raise ValueError('You can only pass an iterable, or keyword arguments, not both.')
+        elif orig and not kw:
             try:
-                method = getattr(u.orig, method_name)
-                s = sorted(method())
-            except TypeError:
-                continue
-            else:
-                method = getattr(u.frz, method_name)
-                f = sorted(method())
-            self.assertEqual(s,f)
-            
-    def test_frozendict_same_as_regular_dict_sorted_keys(self):
-        self.__test_same_as_regular_dict_sorted_methods('keys')
+                items = orig.items()
+            except AttributeError:
+                items = orig
+        elif kw and not orig:
+            items = kw.items()
+        else:
+            items = []
 
-    def test_frozendict_same_as_regular_dict_sorted_values(self):
-        self.__test_same_as_regular_dict_sorted_methods('values')
-
-    def test_frozendict_same_as_regular_dict_sorted_items(self):
-        self.__test_same_as_regular_dict_sorted_methods('items')
-
-    
-if version == 2:
-    class Test_FrozenDict_Python2(Test_FrozenDict):
-        def test_frozendict_Python2_lists_keys(self):
-            for u in self.units:
-                self.assertEqual(list(u.frz.keys()), u.frz.keys())
-
-        def test_frozendict_Python2_lists_values(self):
-            for u in self.units:
-                self.assertEqual(list(u.frz.values()), u.frz.values())
-
-        def test_frozendict_Python2_lists_items(self):
-            for u in self.units:
-                self.assertEqual(list(u.frz.items()), u.frz.items())
-    
-        @staticmethod
-        def iterfunc(method):
-            return len(method())
-
-        def test_frozendict_Python2_generators_iterkeys(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.iterkeys)
-    
-        def test_frozendict_Python2_generators_itervalues(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.itervalues)
-
-        def test_frozendict_Python2_generators_iteritems(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.iteritems)
-    
-if version == 3:
-    class Test_FrozenDict_Python3(Test_FrozenDict):
-        @staticmethod
-        def iterfunc(method):
-            return len(method())
-
-        def test_frozendict_Python3_generators_keys(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.keys)
+        dct = reduce(cls.item_adder, items, {})
+        length = sum(map(len, dct.values()))
+        dct = reduce(cls.grouper, tuple(dct), dct)
+        dct = list(map(list, dct.items()))
+        dct.sort(key=itemgetter(0))
         
-        def test_frozendict_Python3_generators_values(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.values)
+        hashes = tuple(map(pop_first, dct))
+        items = tuple(map(pop_first, dct))
+        t = (hashes,items,length)
+        return tuple.__new__(cls,t)
 
-        def test_frozendict_Python3_generators_items(self):
-            for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.items)
+    def hashes(self):
+        return tuple.__iter__(self._hashes)
 
-del Test_FrozenDict
+    def groups(self):
+        return tuple.__iter__(self._groups)
+
+    def items(self):
+        return from_iterable(self.groups())
+
+    def keys(self):
+        return map(itemgetter(0), self.items())
+        
+    def values(self):
+        return map(itemgetter(1), self.items())
+
+    def __iter__(self):
+        return map(itemgetter(0), self.items())
+        
+    def __getitem__(self, key):
+        try:
+            x = hash(key)
+            idx = bisect_left(self._hashes, x)
+            for k0, v0 in self._groups[idx]:
+                if k0 == key:
+                    return v0
+        except IndexError:
+            pass
+        raise KeyError(key)
+
+    def __contains__(self, key):
+        try:
+            self[key]
+            return True
+        except KeyError:
+            return False
+
+    def get(self, key, d = None):
+        try:
+            return self[key]
+        except KeyError:
+            return d
+    
+    def __repr__(self):
+        cls = self.__class__.__name__
+        f = lambda i: '%r : %r' % i
+        _repr = ', '.join(map(f, self.items()))
+        return '%s({%s})' % (cls, _repr)
+        
+    def __eq__(self, other):
+        if not isinstance(other, FrozenDict):
+            other = FrozenDict(other)
+        return tuple.__eq__(self, other)
+        
+    def __hash__(self):
+        return hash(self._groups)
+        
+    def __len__(self):
+        return tuple.__getitem__(self, 2)
+
+    @classmethod        
+    def fromkeys(cls, keys, value):
+        return cls(dict.fromkeys(keys, value))
+
+
+if __version__ == 3:
+    Mapping.register(FrozenDict)
+
+if __version__ == 2:
+    iterkey_getter = col(0)
+    itervalue_getter = col(1)
+    iteritem_getter = col(slice(None,2))
+
+    class Python2(tuple):
+        __doc__ = doc_str
+        tuple_getter = tuple.__getitem__
+        
+        def __iter__(self):
+            return imap(itemgetter(0), self.iteritems())
+
+        def iterhashes(self):
+            return iter(tuple.__iter__(self._hashes))
+    
+        def itergroups(self):
+            return iter(tuple.__iter__(self._groups))
+    
+        def iteritems(self):
+            return iter(from_iterable(self.itergroups()))
+    
+        def iterkeys(self):
+            return imap(itemgetter(0), self.iteritems())
+            
+        def itervalues(self):
+            return imap(itemgetter(1), self.iteritems())
+
+        def hashes(self):
+            return list(self.iterhashes())
+            
+        def groups(self):
+            return list(self.itergroups())
+            
+        def keys(self):
+            return list(self.iterkeys())
+            
+        def values(self):
+            return list(self.itervalues())
+            
+        def items(self):
+            return list(self.iteritems())
+
+        def has_key(self, key):
+            return key in self
+
+    #If this is Python2, rebuild the class
+    #from scratch rather than use a subclass
+    dct = FrozenDict.__dict__
+    py3 = {k: dct[k] for k in dct}
+
+    py2 = {'__doc__': doc_str}
+    py2.update(py3)
+    dct = Python2.__dict__
+    py2.update({k: dct[k] for k in dct})
+    
+    FrozenDict = type('FrozenDict', (tuple,), py2)
+    Mapping.register(FrozenDict)
+
 if __name__ == '__main__':
-    unittest.main()
+    frz = FrozenDict(imap(lambda i: (str(i),i), xrange(10**6)))
+    dct = dict(imap(lambda i: (str(i),i), xrange(10**6)))
+    
