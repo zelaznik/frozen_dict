@@ -52,8 +52,14 @@ class Group(frozenset):
         return hash(frz)
     def __repr__(self):
         return frozenset.__repr__(self)
+    def __call__(self, key):
+        for k0, value in self.items():
+            if k0 == key:
+                return value
+        raise KeyError(key)
 
 t_iter = tuple.__iter__
+t_get = tuple.__getitem__
 class Single(tuple):
     ''' The singleton counterpart to "Group".  This is a regular tuple,
         except the iteration is overloaded so that (key, value)
@@ -77,6 +83,10 @@ class Single(tuple):
         return t_iter((self.pair,))
     def __len__(self):
         return 1
+    def __call__(self, key):
+        if t_get(self,0) == key:
+            return t_get(self,1)
+        raise KeyError(key)
     def __repr__(self):
         return 'Single(%r, %r)' % self.pair
 
@@ -124,6 +134,7 @@ FrozenDict supports bi-directional conversions with regular dictionaries.
     [in]  >>> dict(FrozenDict(original))
     [out] >>> {'x': 3, 'y': 4, 'z': 5}   '''
 
+g = tuple.__getitem__
 class FrozenDict(tuple):
     __doc__ = doc_str
     __slots__ = ()
@@ -172,13 +183,13 @@ class FrozenDict(tuple):
             items = []
 
         dct = reduce(cls.item_adder, items, {})
-        length = sum(map(len, dct.values()))
+        length = sum(imap(len, dct.values()))
         dct = reduce(cls.grouper, tuple(dct), dct)
-        dct = list(map(list, dct.items()))
+        dct = list(imap(list, dct.items()))
         dct.sort(key=itemgetter(0))
-        
-        hashes = tuple(map(pop_first, dct))
-        items = tuple(map(pop_first, dct))
+
+        hashes = tuple(imap(pop_first, dct))
+        items = tuple(imap(pop_first, dct))
         t = (hashes,items,length)
         return tuple.__new__(cls,t)
 
@@ -199,14 +210,11 @@ class FrozenDict(tuple):
 
     def __iter__(self):
         return map(itemgetter(0), self.items())
-        
+
     def __getitem__(self, key):
+        idx = bisect_left(t_get(self,0), hash(key))
         try:
-            x = hash(key)
-            idx = bisect_left(self._hashes, x)
-            for k0, v0 in self._groups[idx]:
-                if k0 == key:
-                    return v0
+            return t_get(self, 1)[idx](key)
         except IndexError:
             pass
         raise KeyError(key)
@@ -241,10 +249,9 @@ class FrozenDict(tuple):
     def __len__(self):
         return tuple.__getitem__(self, 2)
 
-    @classmethod        
+    @classmethod
     def fromkeys(cls, keys, value):
         return cls(dict.fromkeys(keys, value))
-
 
 if __version__ == 3:
     Mapping.register(FrozenDict)
