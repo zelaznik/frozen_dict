@@ -1,3 +1,56 @@
+'''Summary:
+- Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
+- Most implementations of FrozenDict simply subclass dict, or wrap a thin object around one.
+- This implemtation is 100% thread safe.  It subclasses tuple.
+- All bindings, other than the items themselves, are subclasses of tuple or frozenset.
+
+Features:
+- Hashable like a tuple.  It returns a hash if and only if its values are hashable.
+- Works with both Python 2 and Python3.
+- Supports bi-directional conversion to and from regular dictionaries
+- A FrozenDict is created with the same arguments that instantiate a regular dict. 
+- Can replace an existing dictionary, assuming your code doesn't check types.
+- Great for debugging.
+
+Speed:
+- Uses similar hash-table lookup methodology as a dict, O(1), but in pure Python.
+- With strings as keys, 2.51 micro-sec to return a value from 1 million items.
+
+Requirements:
+- Python 2.6 or later, any version of Python3.
+- Unit tested on 2.7 and 3.4.  Please report any bugs.
+
+Python2 vs Python3:
+- The same differences that are found in regular dictionaries.
+- keys(), values(), and items() in Python3 return generators.
+- keys(), values(), and items() in Python2 return lists.
+- iterkeys(), itervalues(), and iteritems() do not exist in Python3.
+
+Not Implemented Features:
+- Python3: None
+- Python2: viewkeys, viewvalues, and viewitems
+- These are legacy methods from Python2, discontinued in Python3.
+- Those methods would require creating a new dict every time.
+- If you want those methods, either modify my code or create your own subclass.
+
+Methodology:
+- A FrozenDict is a subclass of tuple, and it contains two main entries:
+- One entry is a tuple of the items sorted by hash, the other is a lookup table of those hashes.
+- Items, meaning key-value pairs, are grouped by their key's hash value.
+- Most items have their own unique hash.  Approx 1 in 1400 items have collisions.
+- To return an value, the key is hashed, python's "bisect" finds the hash's location.
+- The second entry holds all of the hash-groups, and it is promptly retrieved.
+
+Resolving Hash Collisions
+- During a collision, items are placed in a subclass of frozenset, called "Group".
+- "Group" can accept unhashable items, but will then no longer return a hash itself.
+- Each key-value pair is put in a class "Item" which only hashes the key.
+- This allows items with un-hashable values to be stored inside an unordered frozenset.
+- When hashing "Group", we unpack the items into regular tuples.
+- Then we put those items into a new frozenset and take that hash.
+- If any item is unhashable, this is where we'll get an error.
+'''
+
 if 3 / 2 == 1:
     __version__ = 2
     from itertools import imap
@@ -8,30 +61,28 @@ elif 3 / 2 == 1.5:
     from functools import reduce
     xrange = range
 
-# collections.Mapping seems like a pretty useless base class
-# but the python community seems to love it, so I'll register
-# FrozenDict as a subclass of Mapping.
-from collections import Mapping
-
 import itertools as it
+from collections import Mapping
 from operator import itemgetter, methodcaller, attrgetter
 from bisect import bisect_left
 
 from_iterable = it.chain.from_iterable
 
+itemgetter_0 = itemgetter(0)
+itemgetter_1 = itemgetter(1)
+itemgetter_0_1 = itemgetter(0,1)
 flipped = itemgetter(1,0)
 pop_first = methodcaller('pop', 0)
 pop_last = methodcaller('pop', -1)
-hash_caller = methodcaller('__hash__')
 
 key_getter = attrgetter('key')
 val_getter = attrgetter('value')
 pair_getter = attrgetter('pair')
 
 class Item(tuple):
-    key   = property(itemgetter(0))
-    value = property(itemgetter(1))
-    pair  = property(itemgetter(0,1))
+    key   = property(itemgetter_0)
+    value = property(itemgetter_1)
+    pair  = property(itemgetter_0_1)
     __slots__ = ()
     def __hash__(self):
         return hash(self[0])
@@ -42,18 +93,36 @@ class Group(frozenset):
     __slots__ = ()
     def __new__(cls, items):
         wrapped = map(Item, items)
-        return frozenset.__new__(cls, wrapped)
+        self = frozenset.__new__(cls, wrapped)
+        keys = set(map(itemgetter_0, self))
+        if len(keys) < len(self):
+            key_list = list(map(itemgetter_0, self))
+            args = [k for k in keys if key_list.count(k) > 1]
+            line_1 = 'You have tried to create a frozen dictionary'
+            line_2 = 'by mapping the same key to multiple values.'
+            line_3 = 'Key(s) with inconsistent values: %s' % str(args)
+            msg = '\n   '.join(['',line_1,line_2,line_3])
+            raise ValueError(msg)
+        if len(self) == 1:
+            for item in self:
+                return Single(item)
+        return self
+
     def __iter__(self):
-        return self.items()
+        return imap(itemgetter_0_1, f_iter(self))
+        
     def items(self):
-        return imap(pair_getter, f_iter(self))
+        return imap(itemgetter_0_1, f_iter(self))
+
     def __hash__(self):
         frz = frozenset(self.items())
         return hash(frz)
+
     def __repr__(self):
         return frozenset.__repr__(self)
+
     def __call__(self, key):
-        for k0, value in self.items():
+        for k0, value in self:
             if k0 == key:
                 return value
         raise KeyError(key)
@@ -75,9 +144,9 @@ class Single(tuple):
         In testing 5 million hashes I only found collisions in 1/1400 items.
     '''
       
-    key   = property(itemgetter(0))
-    value = property(itemgetter(1))
-    pair  = property(itemgetter(0,1))
+    key   = property(itemgetter_0)
+    value = property(itemgetter_1)
+    pair  = property(itemgetter_0_1)
     __slots__ = ()
     def __iter__(self):
         return t_iter((self.pair,))
@@ -169,27 +238,26 @@ class FrozenDict(tuple):
         dct[h] = grp
         return dct
 
-    def __new__(cls, orig = {}, **kw):
-        if orig and kw:
-            raise ValueError('You can only pass an iterable, or keyword arguments, not both.')
-        elif orig and not kw:
+    def __new__(cls, *args, **kw):
+        if len(args) > 1:
+            raise ValueError('The variable "args" can only contain one item.')
+        if args:
             try:
-                items = orig.items()
+                args = args[0].items()
             except AttributeError:
-                items = orig
-        elif kw and not orig:
-            items = kw.items()
-        else:
-            items = []
+                args = args[0]
 
-        dct = reduce(cls.item_adder, items, {})
-        length = sum(imap(len, dct.values()))
+        dct = reduce(cls.item_adder, args, {})
+        del args
+        dct = reduce(cls.item_adder, kw.items(), dct)
         dct = reduce(cls.grouper, tuple(dct), dct)
         dct = list(imap(list, dct.items()))
-        dct.sort(key=itemgetter(0))
+        dct.sort(key=itemgetter_0)
 
         hashes = tuple(imap(pop_first, dct))
         items = tuple(imap(pop_first, dct))
+        del dct
+        length = sum(imap(len, items))
         t = (hashes,items,length)
         return tuple.__new__(cls,t)
 
@@ -203,13 +271,13 @@ class FrozenDict(tuple):
         return from_iterable(self.groups())
 
     def keys(self):
-        return map(itemgetter(0), self.items())
+        return map(itemgetter_0, self.items())
         
     def values(self):
-        return map(itemgetter(1), self.items())
+        return map(itemgetter_1, self.items())
 
     def __iter__(self):
-        return map(itemgetter(0), self.items())
+        return map(itemgetter_0, self.items())
 
     def __getitem__(self, key):
         idx = bisect_left(t_get(self,0), hash(key))
@@ -234,8 +302,8 @@ class FrozenDict(tuple):
     
     def __repr__(self):
         cls = self.__class__.__name__
-        f = lambda i: '%r : %r' % i
-        _repr = ', '.join(map(f, self.items()))
+        f = lambda i: '%r: %r' % i
+        _repr = ', '.join(imap(f, self.items()))
         return '%s({%s})' % (cls, _repr)
         
     def __eq__(self, other):
@@ -248,6 +316,11 @@ class FrozenDict(tuple):
         
     def __len__(self):
         return tuple.__getitem__(self, 2)
+        
+    def copy(self):
+        cls = type(self)
+        t = tuple(tuple.__iter__(self))
+        return tuple.__new__(cls, t)
 
     @classmethod
     def fromkeys(cls, keys, value):
@@ -266,7 +339,7 @@ if __version__ == 2:
         tuple_getter = tuple.__getitem__
         
         def __iter__(self):
-            return imap(itemgetter(0), self.iteritems())
+            return imap(itemgetter_0, self.iteritems())
 
         def iterhashes(self):
             return iter(tuple.__iter__(self._hashes))
@@ -278,10 +351,10 @@ if __version__ == 2:
             return iter(from_iterable(self.itergroups()))
     
         def iterkeys(self):
-            return imap(itemgetter(0), self.iteritems())
+            return imap(itemgetter_0, self.iteritems())
             
         def itervalues(self):
-            return imap(itemgetter(1), self.iteritems())
+            return imap(itemgetter_1, self.iteritems())
 
         def hashes(self):
             return list(self.iterhashes())
