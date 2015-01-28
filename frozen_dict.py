@@ -34,7 +34,7 @@ class Item(tuple):
     pair  = property(itemgetter(0,1))
     __slots__ = ()
     def __hash__(self):
-        return hash(self.key)
+        return hash(self[0])
         
 f_iter = frozenset.__iter__
 class Group(frozenset):
@@ -84,8 +84,8 @@ class Single(tuple):
     def __len__(self):
         return 1
     def __call__(self, key):
-        if t_get(self,0) == key:
-            return t_get(self,1)
+        if self[0] == key:
+            return self[1]
         raise KeyError(key)
     def __repr__(self):
         return 'Single(%r, %r)' % self.pair
@@ -317,4 +317,3 @@ if __version__ == 2:
 if __name__ == '__main__':
     frz = FrozenDict(imap(lambda i: (str(i),i), xrange(10**6)))
     dct = dict(imap(lambda i: (str(i),i), xrange(10**6)))
-    
