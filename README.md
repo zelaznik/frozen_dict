@@ -3,7 +3,7 @@ Summary:
 
 Features:
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
-- Compatible with both Python 2 and Python3.  Tested on 2.7 and 3.4
+- Compatible with both Python 2 and Python3.
 - Supports bi-directional conversion to and from regular dictionaries
 - A FrozenDict is also created using the same arguments needed to instantiate a regular dict. 
 - Can replace an existing dictionary, assuming your code doesn't check types.
@@ -12,6 +12,10 @@ Speed:
 - Uses similar hash-table lookup methodology.
 - Lookup times are on O(1).  Using strings as keys, 1.69 micro-sec for a dict with 3 items.
 - For a dictionary with 1 million itmes, it takes on average 2.51 micro-sec to retrieve a value.
+
+Requirements:
+- Python 2.6 or later, any version of Python3.
+- Unit tested on 2.7 and 3.4
 
 Python2 vs Python3:
 - The same differences that are found in regular dictionaries.
