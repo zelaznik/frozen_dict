@@ -9,6 +9,7 @@ Features:
 - Can replace an existing dictionary, assuming your code doesn't check types.
 
 Speed:
+- Uses similar hash-table lookup methodology.
 - Lookup times are on O(1).  Using strings as keys, 1.69 micro-sec for a dict with 3 items.
 - For a dictionary with 1 million itmes, it takes on average 2.51 micro-sec to retrieve a value.
 
