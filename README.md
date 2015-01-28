@@ -1,5 +1,7 @@
-Features:
+Summary:
 - Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
+
+Features:
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
 - Compatible with both Python 2 and Python3.  Tested on 2.7 and 3.4
 - Supports bi-directional conversion to and from regular dictionaries
