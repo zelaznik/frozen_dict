@@ -314,7 +314,10 @@ class FrozenDict(tuple):
         
     def __eq__(self, other):
         if not isinstance(other, FrozenDict):
-            other = FrozenDict(other)
+            try:
+                other = FrozenDict(other)
+            except Exception:
+                return False
         return t_eq(self._groups, other._groups)
         
     def __hash__(self):
