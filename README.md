@@ -6,7 +6,7 @@ Features:
 - Compatible with both Python 2 and Python3.  Tested on 2.7 and 3.4
 - Supports bi-directional conversion to and from regular dictionaries
 - A FrozenDict is also created using the same arguments needed to instantiate a regular dict. 
-- Can be dropped into code in place of an existing dictionary, assuming your code doesn't use type checking.
+- Can replace an existing dictionary, assuming your code doesn't check types.
 
 Speed:
 - Lookup times are on O(1).  Using strings as keys, 1.69 micro-sec for a dict with 3 items.
