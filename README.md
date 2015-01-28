@@ -19,6 +19,6 @@ Features:
 - A FrozenDict is a subclass of tuple, and it contains two main entries.
 - One entry is a tuple of all the items sorted by hash value, the other entry is a lookup table of those hashes.
 - In the event of a hash collision, items are stored inside a special subclass of frozenset
-- The frozenset can accept key-value pairs with unhashable items, but will then not return a hash if that happens.
-- Equality between a FrozenDict and another object is tested by converting the other object into a FrozenDict first.
-- The hash of a FrozenDict is simply the hash of the tuple which stores all the sorted items.  (As well as the occasional frozenset).
+- The frozenset can accept unhashable items, but will then no longer return a hash.
+- Equality is tested by converting the other object into a FrozenDict.
+- The hash of a FrozenDict is simply the hash of the tuple which stores all the items.
