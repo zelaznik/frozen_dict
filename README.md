@@ -1,24 +1,24 @@
 Summary:
 - Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
-- Most implementations of FrozenDict simply subclass dict, or place a thin wrapper around a dict.
+- Most implementations of FrozenDict simply subclass dict, or wrap a thin object around one.
 - This implemtation is 100% thread safe.  It subclasses tuple.
-- All of the key-value pairs are stored inside either tuples or frozensets.
+- All bindings, other than the items themselves, are subclasses of tuple or frozenset.
 
 Features:
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
-- Compatible with both Python 2 and Python3.
+- Works with both Python 2 and Python3.
 - Supports bi-directional conversion to and from regular dictionaries
-- A FrozenDict is also created using the same arguments needed to instantiate a regular dict. 
+- A FrozenDict is created with the same arguments that instantiate a regular dict. 
 - Can replace an existing dictionary, assuming your code doesn't check types.
+- Great for debugging.
 
 Speed:
-- Uses similar hash-table lookup methodology as a dict, but done in pure Python.
-- Lookup times are on O(1).  Using strings as keys, 1.69 micro-sec for a dict with 3 items.
-- For a dictionary with 1 million itmes, it takes on average 2.51 micro-sec to retrieve a value.
+- Uses similar hash-table lookup methodology as a dict, O(1), but in pure Python.
+- With strings as keys, 2.51 micro-sec to return a value from 1 million items.
 
 Requirements:
 - Python 2.6 or later, any version of Python3.
-- Unit tested on 2.7 and 3.4
+- Unit tested on 2.7 and 3.4.  Please report any bugs.
 
 Python2 vs Python3:
 - The same differences that are found in regular dictionaries.
@@ -34,10 +34,18 @@ Not Implemented Features:
 - If you want those methods, either modify my code or create your own subclass.
 
 Methodology:
-- A FrozenDict is a subclass of tuple, and it contains two main entries
+- A FrozenDict is a subclass of tuple, and it contains two main entries:
 - One entry is a tuple of the items sorted by hash, the other is a lookup table of those hashes.
-- To get an item, the key is hashed, python's "bisect" finds the index of the hash.
-- During a hash collision, items are stored inside a subclass of frozenset, "Group".
-- Group can accept unhashable items, but will then no longer return a hash itself.
-- Equality is tested by converting the other object into a FrozenDict.
-- The hash of a FrozenDict is calculated by simply hashing the tuple which stores all the items.
+- Items, meaning key-value pairs, are grouped by their key's hash value.
+- Most items have their own unique hash.  Approx 1 in 1400 items have collisions.
+- To return an value, the key is hashed, python's "bisect" finds the hash's location.
+- The second entry holds all of the hash-groups, and it is promptly retrieved.
+
+Resolving Hash Collisions
+- During a collision, items are placed in a subclass of frozenset, called "Group".
+- "Group" can accept unhashable items, but will then no longer return a hash itself.
+- Each key-value pair is put in a class "Item" which only hashes the key.
+- This allows items with un-hashable values to be stored inside an unordered frozenset.
+- When hashing "Group", we unpack the items into regular tuples.
+- Then we put those items into a new frozenset and take that hash.
+- If any item is unhashable, this is where we'll get an error.
