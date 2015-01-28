@@ -136,6 +136,8 @@ class Test_FrozenDict(unittest.TestCase):
 
         self.add_unit(my_list = [], my_object = object())
         self.add_unit({'my_list': [], 'my_object': object()})
+        
+        self.units = tuple(self.units)
     
     def test_frozendict_reversible(self):
         for u in self.units:
@@ -162,12 +164,16 @@ class Test_FrozenDict(unittest.TestCase):
     def test_frozendict_operator__eq__(self):
         for u in self.units:
             self.assertEqual(u.orig, u.thaw)
-            self.assertNotEqual(u.plus_one, u.thaw)                
+            self.assertNotEqual(u.plus_one, u.thaw)
+            for a in self.units:
+                self.assertEqual((u.frz == a.frz), (u.orig == a.orig))
             
     def test_frozendict_operator__ne__(self):
         for u in self.units:
             self.assertEqual((u.orig != u.thaw), False)
             self.assertEqual((u.plus_one != u.thaw), True)
+            for a in self.units:
+                self.assertEqual((u.frz != a.frz), (u.orig != a.orig))
             
     def test_frozendict_operator__len__(self):
         for u in self.units:
@@ -209,6 +215,8 @@ class Test_FrozenDict(unittest.TestCase):
                 try:
                     s = {u.frz, a.frz}
                 except TypeError:
+                    s = None
+                if not s:
                     self.assertEqual((u.orig == a.orig), (u.frz == a.frz))
                 else:
                     f = frozenset
@@ -234,6 +242,19 @@ class Test_FrozenDict(unittest.TestCase):
                 for k,v in u.orig.items():
                     self.assertEqual(u.frz.get(k), v)
                 self.assertEqual(u.frz.get(u.aggKey, alt), alt)
+
+    def test_frozendict_method_copy(self):
+        for u in self.units:
+            fCopy = u.frz.copy()
+            self.assertEqual(dict(fCopy), u.orig)
+            self.assertEqual(fCopy, u.frz)
+            self.assertIsNot(fCopy, u.frz)
+            self.assertIs(type(fCopy), type(u.frz))
+            try:
+                hash(u.frz)
+            except TypeError:
+                continue
+            self.assertEqual({u.frz}, {u.frz, fCopy})
             
     def test_frozendict_generator_consistency(self):
         #Make sure the keys/values/and items all yield their results
@@ -257,6 +278,39 @@ class Test_FrozenDict(unittest.TestCase):
         for u in self.units:
             for key in u.frz:
                 self.assertRaises(TypeError,func,u.frz,key)
+                
+    def test_frozendict_method__new__(self):
+        for u in self.units:
+            xx = FrozenDict(**u.orig)
+            self.assertEqual(u.orig, dict(xx))
+            
+            yy = FrozenDict(u.orig)
+            self.assertEqual(u.orig, dict(yy))
+            
+            xy = FrozenDict(u.orig, **u.orig)
+            self.assertEqual(u.orig, dict(xy))
+
+            if not u.orig:
+                continue
+
+            cls = FrozenDict
+            fcn = cls.__new__
+            kw = {tuple(u.orig)[0]: u.aggValue}
+            self.assertRaises(ValueError, fcn, cls, u.orig, **kw)
+            
+            keys = tuple(u.orig)
+            if set(map(type, keys)) != {str}:
+                continue
+            for i in range(len(keys)):
+                items  = {k: u.orig[k] for k in keys[:i]}
+                kwargs = {k: u.orig[k] for k in keys[i:]}
+                agg = FrozenDict(items, **kwargs)
+                rev = FrozenDict(kwargs, **items)
+                self.assertEqual(agg, rev)
+                self.assertEqual(agg, u.frz)
+                self.assertEqual(rev, u.frz)
+                self.assertEqual(dict(agg), dict(rev))
+
                 
     def test_frozendict_fails_method_clear(self):
         def func(obj):
