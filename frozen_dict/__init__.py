@@ -340,10 +340,6 @@ if __version__ == 3:
     Mapping.register(FrozenDict)
 
 if __version__ == 2:
-    iterkey_getter = col(0)
-    itervalue_getter = col(1)
-    iteritem_getter = col(slice(None,2))
-
     class Python2(tuple):
         __doc__ = doc_str
         tuple_getter = tuple.__getitem__
