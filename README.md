@@ -28,7 +28,7 @@ Not Implemented Features:
 Methodology:
 - A FrozenDict is a subclass of tuple, and it contains two main entries
 - One entry is a tuple of the items sorted by hash, the other is a lookup table of those hashes.
-- To get an item, the key is hashed, and python's bisect module finds the position of the matching hash
+- To get an item, the key is hashed, python's "bisect" finds the index of the hash.
 - During a hash collision, items are stored inside a subclass of frozenset, "Group".
 - Group can accept unhashable items, but will then no longer return a hash itself.
 - Equality is tested by converting the other object into a FrozenDict.
