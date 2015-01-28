@@ -1,5 +1,7 @@
 Summary:
 - Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
+- Most implementations of FrozenDict simply subclass dict, or place a thin wrapper around a dict.
+- This implemtation is 100% thread safe.  It subclasses tuple, and all of the bindings are immutable too.
 
 Features:
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
