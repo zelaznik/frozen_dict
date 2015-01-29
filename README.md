@@ -13,8 +13,8 @@ Features:
 - Great for debugging.
 
 Speed:
-- Uses similar hash-table lookup methodology as a dict, O(1), but in pure Python.
-- With strings as keys, 2.51 micro-sec to return a value from 1 million items.
+- Uses sorted arrays, operattions are O(log(n)).
+- With strings as keys, 1.8 micro-sec to return a value from 1 million items.
 
 Requirements:
 - Python 2.6 or later, any version of Python3.
