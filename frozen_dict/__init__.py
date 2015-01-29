@@ -13,7 +13,7 @@ Features:
 - Great for debugging.
 
 Speed:
-- Uses similar hash-table lookup methodology as a dict, O(1), and in pure Python.
+- Lookups are O(log(n)), and in pure Python.
 - With strings as keys, 1.8 micro-sec to return a value from 1 million items.
 
 Requirements:
