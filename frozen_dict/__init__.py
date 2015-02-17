@@ -13,7 +13,7 @@ Features:
 - Great for debugging.
 
 Speed:
-- Lookups are O(log(n)), and in pure Python.
+- Uses similar hash-table lookup methodology as a dict, O(1), and in pure Python.
 - With strings as keys, 1.8 micro-sec to return a value from 1 million items.
 
 Requirements:
@@ -52,6 +52,8 @@ Resolving Hash Collisions
 - If any item is unhashable, this is where we'll get an error.
 '''
 
+__all__ = ['FrozenDict','Item','Single','Group']
+
 if 3 / 2 == 1:
     __version__ = 2
     from itertools import imap
@@ -62,8 +64,9 @@ elif 3 / 2 == 1.5:
     from functools import reduce
     xrange = range
 
+import gc
 import itertools as it
-from collections import Mapping
+from collections import Mapping, defaultdict
 from operator import itemgetter, methodcaller, attrgetter
 from bisect import bisect_left
 
@@ -72,13 +75,6 @@ from_iterable = it.chain.from_iterable
 itemgetter_0 = itemgetter(0)
 itemgetter_1 = itemgetter(1)
 itemgetter_0_1 = itemgetter(0,1)
-flipped = itemgetter(1,0)
-pop_first = methodcaller('pop', 0)
-pop_last = methodcaller('pop', -1)
-
-key_getter = attrgetter('key')
-val_getter = attrgetter('value')
-pair_getter = attrgetter('pair')
 
 class Item(tuple):
     key   = property(itemgetter_0)
@@ -87,11 +83,14 @@ class Item(tuple):
     __slots__ = ()
     def __hash__(self):
         return hash(self[0])
-        
+    def __repr__(self):
+        return 'Item([%r, %r])' % self
+
 f_iter = frozenset.__iter__
 class Group(frozenset):
     ''' Container to store multiple items during a hash collision.'''
     __slots__ = ()
+    _length = property(len)
     def __new__(cls, items):
         wrapped = map(Item, items)
         self = frozenset.__new__(cls, wrapped)
@@ -101,7 +100,7 @@ class Group(frozenset):
             args = [k for k in keys if key_list.count(k) > 1]
             line_1 = 'You have tried to create a frozen dictionary'
             line_2 = 'by mapping the same key to multiple values.'
-            line_3 = 'Key(s) with inconsistent values: %s' % str(args)
+            line_3 = 'Key(s) with inconsistent values: %s' % (args,)
             msg = '\n   '.join(['',line_1,line_2,line_3])
             raise ValueError(msg)
         if len(self) == 1:
@@ -115,19 +114,17 @@ class Group(frozenset):
 
     def __iter__(self):
         return imap(itemgetter_0_1, f_iter(self))
-        
-    def items(self):
-        return imap(itemgetter_0_1, f_iter(self))
 
     def __hash__(self):
-        frz = frozenset(self.items())
+        frz = frozenset(list(self))
         return hash(frz)
 
     def __repr__(self):
-        return frozenset.__repr__(self)
+        cls = type(self).__name__
+        return '%s(%r)' % (cls, list(self))
 
-    def __call__(self, key):
-        ''' Both "Group" and "Single" use the __call__ feature
+    def get(self, key):
+        ''' Both "Group" and "Single" use the "get" feature
             to look for a key-value pair.  Only "Group" iterates
             through each item.  This is slow, but hash collisions
             are rare, so this is not a big deal.'''
@@ -136,6 +133,14 @@ class Group(frozenset):
                 return value
         raise KeyError(key)
 
+    def has(self, key):
+        ''' Like the "get" method but only checks for the existence of a key. '''
+        for k0, value in self:
+            if k0 == key:
+                return True
+        return False
+        
+        
 t_iter = tuple.__iter__
 t_get = tuple.__getitem__
 class Single(tuple):
@@ -151,17 +156,21 @@ class Single(tuple):
     key   = property(itemgetter_0)
     value = property(itemgetter_1)
     pair  = property(itemgetter_0_1)
+    _length = 1
     __slots__ = ()
     def __iter__(self):
         return t_iter((self.pair,))
     def __len__(self):
         return 1
-    def __call__(self, key):
+    def get(self, key):
         if self[0] == key:
             return self[1]
         raise KeyError(key)
+    def has(self, key):
+        ''' Like the "get" method but only checks for the existence of a key. '''
+        return self[0] == key
     def __repr__(self):
-        return 'Single(%r, %r)' % self.pair
+        return 'Single([%r, %r])' % self
 
 doc_str = '''\
 Behaves in most ways like a regular dictionary, except that it's immutable.
@@ -198,32 +207,35 @@ FrozenDict supports bi-directional conversions with regular dictionaries.
     [in]  >>> dict(FrozenDict(original))
     [out] >>> {'x': 3, 'y': 4, 'z': 5}   '''
 
-def col(i):
-    ''' We can't use itemgetter when we've overloaded
-        __getitem__ so we need to bind the method
-        directly from tuple.'''
-    g = tuple.__getitem__
-    def _col(self):
-        return g(self,i)
-    return _col
-
 t_eq = tuple.__eq__
-t_iter = tuple.__iter__
 t_new = tuple.__new__
+t_iter = tuple.__iter__
+_length = attrgetter('_length')
+
+'''
+__tget__ is actually tuple.__getitem__ which is manually bounded to FrozenDict
+this is done because __getitem__ is overrideen in FrozenDict, so we can't 
+use itemgetter. This is stll faster than calling tuple.__getitem__(self, i)'''
+hash_getter = methodcaller('__tget__', 0)
+group_getter = methodcaller('__tget__', 1)
+length_getter = methodcaller('__tget__', 2)
+
+if __version__ == 2:
+    iteritems = methodcaller('iteritems')
+elif __version__ == 3:
+    iteritems = methodcaller('items')
+
 class FrozenDict(tuple):
     __doc__ = doc_str
     __slots__ = ()
-    _hashes = property(col(0))
-    _groups  = property(col(1))
+    _hashes = property(hash_getter)
+    _groups  = property(group_getter)
+    __tget__ = tuple.__getitem__
 
     @staticmethod
     def item_adder(dct, item):
         ''' This is an agg function which groups items by the hash of the key.'''
-        h = hash(item[0])
-        if h not in dct:
-            dct[h] = [item]
-        else:
-            dct[h].append(item)
+        dct[hash(item[0])].append(item)
         return dct
 
     @staticmethod
@@ -249,23 +261,22 @@ class FrozenDict(tuple):
             raise ValueError('The variable "args" can only contain one item.')
         if args:
             try:
-                args = args[0].items()
+                args = iteritems(args[0])
             except AttributeError:
                 args = args[0]
-
-        dct = reduce(cls.item_adder, args, {})
+        
+        dct = reduce(cls.item_adder, args, defaultdict(list))
         del args
-        dct = reduce(cls.item_adder, kw.items(), dct)
-        dct = reduce(cls.grouper, tuple(dct), dct)
-        dct = list(imap(list, dct.items()))
-        dct.sort(key=itemgetter_0)
+        dct = reduce(cls.item_adder, iteritems(kw), dct)
+        del kw
 
-        hashes = tuple(imap(pop_first, dct))
-        items = tuple(imap(pop_first, dct))
+        dct = reduce(cls.grouper, tuple(dct), dct)
+        dct = sorted(iteritems(dct), key=itemgetter_0)
+        items = tuple(imap(itemgetter_1, dct))
+        hashes = tuple(imap(itemgetter_0, dct))
         del dct
-        length = sum(imap(len, items))
-        t = (hashes,items,length)
-        return t_new(cls,t)
+        length = sum(imap(_length, items))
+        return t_new(cls,(hashes,items,length))
 
     def hashes(self):
         return t_iter(self._hashes)
@@ -286,18 +297,18 @@ class FrozenDict(tuple):
         return map(itemgetter_0, self.items())
 
     def __getitem__(self, key):
-        idx = bisect_left(t_get(self,0), hash(key))
+        idx = bisect_left(hash_getter(self), hash(key))
         try:
-            return t_get(self, 1)[idx](key)
+            return group_getter(self)[idx].get(key)
         except IndexError:
             pass
         raise KeyError(key)
 
     def __contains__(self, key):
+        idx = bisect_left(hash_getter(self), hash(key))
         try:
-            self[key]
-            return True
-        except KeyError:
+            return group_getter(self)[idx].has(key)
+        except IndexError:
             return False
 
     def get(self, key, d = None):
@@ -315,16 +326,16 @@ class FrozenDict(tuple):
     def __eq__(self, other):
         if not isinstance(other, FrozenDict):
             try:
-                other = FrozenDict(other)
+                other = FrozenDict(iteritems(other))
             except Exception:
                 return False
-        return t_eq(self._groups, other._groups)
-        
+        return group_getter(self) == group_getter(other)
+
     def __hash__(self):
-        return hash(self._groups)
-        
+        return hash(group_getter(self))
+
     def __len__(self):
-        return t_get(self, 2)
+        return length_getter(self)
 
     def copy(self):
         cls = type(self)
@@ -345,7 +356,6 @@ if __version__ == 3:
 if __version__ == 2:
     class Python2(tuple):
         __doc__ = doc_str
-        tuple_getter = tuple.__getitem__
         
         def __iter__(self):
             return imap(itemgetter_0, self.iteritems())
@@ -366,10 +376,10 @@ if __version__ == 2:
             return imap(itemgetter_1, self.iteritems())
 
         def hashes(self):
-            return list(self.iterhashes())
+            return list(self._hashes)
             
         def groups(self):
-            return list(self.itergroups())
+            return list(self._groups)
             
         def keys(self):
             return list(self.iterkeys())
@@ -381,7 +391,7 @@ if __version__ == 2:
             return list(self.iteritems())
 
         def has_key(self, key):
-            return key in self
+            return self.__contains__(key)
 
     #If this is Python2, rebuild the class
     #from scratch rather than use a subclass

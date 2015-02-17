@@ -43,6 +43,8 @@ def collider():
                 coll.add(pair)
         val = dict(coll)
         cache[memo_key] = val
+        if len(val) < n:
+            raise RuntimeError("Only found %d hash collisions." % len(val))
         return val.copy()
     return collider
 
@@ -121,9 +123,10 @@ class Test_FrozenDict(unittest.TestCase):
         
         self.item_recursion_max = 10
         self.units = []
-
         self.add_unit()
         self.add_unit({})
+        self.add_unit({-1: 'NegOne', -2: 'NegTwo'})     #Minus one hashes to -2
+        self.add_unit({-1: ['NegOne'], -2: ['NegTwo']}) #so this is an induced hash collision
 
         self.add_unit(x=1)
         self.add_unit({'x': 1})
@@ -280,7 +283,14 @@ class Test_FrozenDict(unittest.TestCase):
                 self.assertRaises(TypeError,func,u.frz,key)
                 
     def test_frozendict_method__new__(self):
+        def test(**kw):
+            pass
         for u in self.units:
+            try:
+                test(**u.orig)
+            except TypeError:
+                continue
+            
             xx = FrozenDict(**u.orig)
             self.assertEqual(u.orig, dict(xx))
             
