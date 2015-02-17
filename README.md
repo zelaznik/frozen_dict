@@ -13,7 +13,7 @@ Features:
 - Great for debugging.
 
 Speed:
-- Uses sorted arrays, operattions are O(log(n)).
+- Uses sorted arrays, operations are O(log(n)).
 - With strings as keys, 1.8 micro-sec to return a value from 1 million items.
 
 Requirements:
