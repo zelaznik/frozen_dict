@@ -64,7 +64,6 @@ elif 3 / 2 == 1.5:
     from functools import reduce
     xrange = range
 
-import gc
 import itertools as it
 from collections import Mapping, defaultdict
 from operator import itemgetter, methodcaller, attrgetter
@@ -86,11 +85,12 @@ class Item(tuple):
     def __repr__(self):
         return 'Item([%r, %r])' % self
 
-f_iter = frozenset.__iter__
 class Group(frozenset):
     ''' Container to store multiple items during a hash collision.'''
     __slots__ = ()
     _length = property(len)
+    __frziter__ = frozenset.__iter__
+    
     def __new__(cls, items):
         wrapped = map(Item, items)
         self = frozenset.__new__(cls, wrapped)
@@ -113,7 +113,7 @@ class Group(frozenset):
         return self
 
     def __iter__(self):
-        return imap(itemgetter_0_1, f_iter(self))
+        return imap(itemgetter_0_1, self.__frziter__())
 
     def __hash__(self):
         frz = frozenset(list(self))
@@ -207,18 +207,9 @@ FrozenDict supports bi-directional conversions with regular dictionaries.
     [in]  >>> dict(FrozenDict(original))
     [out] >>> {'x': 3, 'y': 4, 'z': 5}   '''
 
-t_eq = tuple.__eq__
 t_new = tuple.__new__
 t_iter = tuple.__iter__
 _length = attrgetter('_length')
-
-'''
-__tget__ is actually tuple.__getitem__ which is manually bounded to FrozenDict
-this is done because __getitem__ is overrideen in FrozenDict, so we can't 
-use itemgetter. This is stll faster than calling tuple.__getitem__(self, i)'''
-hash_getter = methodcaller('__tget__', 0)
-group_getter = methodcaller('__tget__', 1)
-length_getter = methodcaller('__tget__', 2)
 
 if __version__ == 2:
     iteritems = methodcaller('iteritems')
@@ -228,8 +219,6 @@ elif __version__ == 3:
 class FrozenDict(tuple):
     __doc__ = doc_str
     __slots__ = ()
-    _hashes = property(hash_getter)
-    _groups  = property(group_getter)
     __tget__ = tuple.__getitem__
 
     @staticmethod
@@ -278,14 +267,8 @@ class FrozenDict(tuple):
         length = sum(imap(_length, items))
         return t_new(cls,(hashes,items,length))
 
-    def hashes(self):
-        return t_iter(self._hashes)
-
-    def groups(self):
-        return t_iter(self._groups)
-
     def items(self):
-        return from_iterable(self.groups())
+        return from_iterable(self.__tget__(1))
 
     def keys(self):
         return map(itemgetter_0, self.items())
@@ -297,17 +280,17 @@ class FrozenDict(tuple):
         return map(itemgetter_0, self.items())
 
     def __getitem__(self, key):
-        idx = bisect_left(hash_getter(self), hash(key))
+        idx = bisect_left(self.__tget__(0), hash(key))
         try:
-            return group_getter(self)[idx].get(key)
+            return self.__tget__(1)[idx].get(key)
         except IndexError:
             pass
         raise KeyError(key)
 
     def __contains__(self, key):
-        idx = bisect_left(hash_getter(self), hash(key))
+        idx = bisect_left(self.__tget__(0), hash(key))
         try:
-            return group_getter(self)[idx].has(key)
+            return self.__tget__(1)[idx].has(key)
         except IndexError:
             return False
 
@@ -329,13 +312,13 @@ class FrozenDict(tuple):
                 other = FrozenDict(iteritems(other))
             except Exception:
                 return False
-        return group_getter(self) == group_getter(other)
+        return self.__tget__(1) == other.__tget__(1)
 
     def __hash__(self):
-        return hash(group_getter(self))
+        return hash(self.__tget__(1))
 
     def __len__(self):
-        return length_getter(self)
+        return self.__tget__(2)
 
     def copy(self):
         cls = type(self)
@@ -360,14 +343,8 @@ if __version__ == 2:
         def __iter__(self):
             return imap(itemgetter_0, self.iteritems())
 
-        def iterhashes(self):
-            return t_iter(self._hashes)
-    
-        def itergroups(self):
-            return t_iter(self._groups)
-    
         def iteritems(self):
-            return iter(from_iterable(self.itergroups()))
+            return from_iterable(self.__tget__(1))
     
         def iterkeys(self):
             return imap(itemgetter_0, self.iteritems())
@@ -375,12 +352,6 @@ if __version__ == 2:
         def itervalues(self):
             return imap(itemgetter_1, self.iteritems())
 
-        def hashes(self):
-            return list(self._hashes)
-            
-        def groups(self):
-            return list(self._groups)
-            
         def keys(self):
             return list(self.iterkeys())
             
@@ -397,7 +368,6 @@ if __version__ == 2:
     #from scratch rather than use a subclass
     dct = FrozenDict.__dict__
     py3 = {k: dct[k] for k in dct}
-
     py2 = {'__doc__': doc_str}
     py2.update(py3)
     dct = Python2.__dict__
@@ -405,6 +375,21 @@ if __version__ == 2:
     
     FrozenDict = type('FrozenDict', (tuple,), py2)
     Mapping.register(FrozenDict)
+
+class Wrapped(Mapping):
+    ''' Simply in place to test the relative speed of 
+        a pure python immutable dictionary, vs the 
+        speed of a Mapping class which wraps a reguar dict.
+    '''
+    def __init__(self, *args, **kw):
+        self._dict = dict(*args, **kw)
+    def __getitem__(self, key):
+        return self._dict[key]
+    def __iter__(self):
+        return iter(self._dict)
+    def __len__(self):
+        return len(self._dict)
+
 
 if __name__ == '__main__':
     frz = FrozenDict(imap(lambda i: (str(i),i), xrange(10**6)))
