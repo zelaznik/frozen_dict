@@ -232,9 +232,9 @@ class FrozenDict(tuple):
         return dct
 
     def __new__(cls, *args, **kw):
+        if len(args) > 1:
+            raise ValueError('The variable "args" can only contain one item.')
         if args:
-            if len(args) > 1:
-                raise ValueError('The variable "args" can only contain one item.')
             try:
                 args = iteritems(args[0])
             except AttributeError:
@@ -251,10 +251,10 @@ class FrozenDict(tuple):
         hashes = tuple(imap(itemgetter_0, dct))
         length = sum(imap(_length, groups))
         try:
-            return t_new(cls,(hashes,groups,length,hash(groups)))
+            h = hash(groups)
         except TypeError:
-            return t_new(cls,(hashes,groups,length))
-        
+            h = None
+        return t_new(cls,(hashes,groups,length,h))
 
     def items(self):
         return from_iterable(self.__cell__(1))
@@ -275,9 +275,12 @@ class FrozenDict(tuple):
             try:
                 return g[0] == key
             except TypeError:
-                return any((i[0] == key for i in g))
+                for k,v in g:
+                    if k == key:
+                        return True
         except IndexError:
-            return False
+            pass
+        return False
 
     def __getitem__(self, key):
         idx = bisect_left(self.__cell__(0), hash(key))
@@ -299,28 +302,24 @@ class FrozenDict(tuple):
         f = lambda i: '%r: %r' % i
         _repr = ', '.join(imap(f, self.items()))
         return '%s({%s})' % (cls, _repr)
-
+        
     def __eq__(self, other):
         if isinstance(other, FrozenDict):
             return self.__cell__(1) == other.__cell__(1)
-
         if not isinstance(other, Mapping):
             return False
-
         if self.__cell__(2) != len(other):
             return False
-
-        items = from_iterable(self.__cell__(1))
+        items = iteritems(self)
         try:
-            return all((other[k] == v for k,v in items))
+            return all((other[i[0]] == i[1] for i in items))
         except KeyError:
             return False
 
     def __hash__(self):
-        try:
-            return self.__cell__(3)
-        except IndexError:
-            pass
+        h = self.__cell__(3)
+        if h is not None:
+            return h
         return hash(self.__cell__(1))
 
     def __len__(self):

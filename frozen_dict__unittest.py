@@ -8,47 +8,6 @@ if 3 / 2 == 1:
 elif 3 / 2 == 1.5:
     version = 3
 
-def enclose(func):
-    return func()
-
-@enclose
-def collider():
-    cache = {}
-    def collider(n, maxInt=10**6):
-        ''' Generates first "n" hash collisions hashing the string of an integer.'''
-        memo_key = (n, maxInt)
-        if memo_key in cache:
-            val = cache[memo_key]
-            return val.copy()
-    
-        ct = 0
-        dct = {}
-        grp = set()
-        for val in range(maxInt):
-            key = str(val)
-            h = hash(key)
-            item = (key,val)
-            if h in dct:
-                dct[h].add(item)
-                grp.add(h)
-                ct += 1
-                if ct >= n:
-                    break
-            else:
-                dct[h] = {item}
-        coll = set()
-        for h in grp:
-            pairs = dct[h]
-            for pair in pairs:
-                coll.add(pair)
-        val = dict(coll)
-        cache[memo_key] = val
-        if len(val) < n:
-            raise RuntimeError("Only found %d hash collisions." % len(val))
-        return val.copy()
-    return collider
-
-
 class Test_FrozenDict(unittest.TestCase):
     @staticmethod
     def plus_one(orig):
@@ -77,7 +36,7 @@ class Test_FrozenDict(unittest.TestCase):
 
         #Add a second version with addition items that have hash collisions
         orig = orig.copy()
-        coll = collider(2)
+        coll = {hash(k): (k,v) for k,v in orig.items()}
         orig.update(coll)
         frz = FrozenDict(orig)
         thaw = dict(frz)
@@ -89,7 +48,7 @@ class Test_FrozenDict(unittest.TestCase):
         #but one in which one of the values included in the hash collision
         #itself is unhashable.
         orig = orig.copy()
-        coll = collider(2)
+        coll = {hash(k): (k,v) for k,v in orig.items()}
         for k in coll:
             coll[k] = []
             break
@@ -102,7 +61,7 @@ class Test_FrozenDict(unittest.TestCase):
 
         #Add a fourth version which includes an unorderable item
         orig = orig.copy()
-        coll = collider(2)
+        coll = {hash(k): (k,v) for k,v in orig.items()}
         for k in coll:
             coll[k] = object()
             break
@@ -115,24 +74,23 @@ class Test_FrozenDict(unittest.TestCase):
 
 
     def setUp(self):
-        try:
-            self.units
-            return
-        except AttributeError:
-            pass
-        
         self.item_recursion_max = 10
         self.units = []
         self.add_unit()
         self.add_unit({})
-        self.add_unit({-1: 'NegOne', -2: 'NegTwo'})     #Minus one hashes to -2
-        self.add_unit({-1: ['NegOne'], -2: ['NegTwo']}) #so this is an induced hash collision
-
+        self.add_unit({-1: 'NegOne', -2: 'NegTwo'})     #Minus one hashes to -2, '' hashes to 0
+        self.add_unit({-1: ['NegOne'], -2: ['NegTwo']}) #so these are induced hash collisions
+        self.add_unit({'': 'empty', 0: 'Zero'})
+        self.add_unit({'': ['empty'], 0: ['Zero']})
+        
         self.add_unit(x=1)
         self.add_unit({'x': 1})
 
+        self.add_unit(x=3,y=4)
         self.add_unit(x=3,y=4,z=5)
         self.add_unit({'x': 3,'y': 4,'z': 5})
+        self.add_unit(a=3,b=4,c=0)
+        self.add_unit({'a': 3,'b': 4,'c': 0})
 
         self.add_unit({'my_list': []})
         self.add_unit(my_list = [])
@@ -141,10 +99,13 @@ class Test_FrozenDict(unittest.TestCase):
         self.add_unit({'my_list': [], 'my_object': object()})
         
         self.units = tuple(self.units)
+        
+    def tearDown(self):
+        del self.units
     
     def test_frozendict_reversible(self):
         for u in self.units:
-            self.assertEqual(u.thaw, u.orig)                
+            self.assertEqual(u.thaw, u.orig)
             f = FrozenDict(u.thaw)
             try:
                 s = {f,u.frz}
@@ -167,16 +128,41 @@ class Test_FrozenDict(unittest.TestCase):
     def test_frozendict_operator__eq__(self):
         for u in self.units:
             self.assertEqual(u.orig, u.thaw)
+            self.assertEqual(u.thaw, u.orig)
+            
             self.assertNotEqual(u.plus_one, u.thaw)
+            self.assertNotEqual(u.thaw, u.plus_one)
+            
+            t = tuple(u.frz.items())
+            self.assertNotEqual((u.frz == t), True)
+            self.assertNotEqual((t == u.frz), True)
+            try:
+                f = frozenset(u.frz.items())
+            except TypeError:
+                pass
+            else:
+                self.assertNotEqual((u.frz == f), True)
+                self.assertNotEqual((f == u.frz), True)
+
             for a in self.units:
-                self.assertEqual((u.frz == a.frz), (u.orig == a.orig))
+                orig_eq = (u.orig == a.orig)
+                self.assertEqual((u.frz == a.frz), orig_eq)
+                self.assertEqual((a.frz == u.frz), orig_eq)
+                self.assertEqual((u.orig == a.frz), orig_eq)
+                self.assertEqual((a.frz == u.orig), orig_eq)
+                self.assertEqual((u.frz == a.orig), orig_eq)
+                self.assertEqual((a.orig == u.frz), orig_eq)
             
     def test_frozendict_operator__ne__(self):
         for u in self.units:
             self.assertEqual((u.orig != u.thaw), False)
+            self.assertEqual((u.thaw != u.orig), False)
             self.assertEqual((u.plus_one != u.thaw), True)
+            self.assertEqual((u.thaw != u.plus_one), True)
             for a in self.units:
-                self.assertEqual((u.frz != a.frz), (u.orig != a.orig))
+                ne_orig = u.orig != a.orig
+                self.assertEqual((u.frz != a.frz), ne_orig)
+                self.assertEqual((a.frz != u.frz), ne_orig)
             
     def test_frozendict_operator__len__(self):
         for u in self.units:
