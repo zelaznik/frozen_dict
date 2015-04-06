@@ -129,6 +129,45 @@ class Group(frozenset):
     def __repr__(self):
         return 'Group(%r)' % (list(self),)
 
+class __Group_Beta(tuple):
+    __slots__ = ()
+    __getitem__ = None
+    __cell__ = tuple.__getitem__
+    _length = property(len)
+    def __new__(cls, items):
+        items_old = items
+        keys = []
+        items = []
+        for i in items:
+            if i[0] not in keys:
+                items.add(i)
+                keys.add(i[0])
+            elif i not in items:
+                raise ValueError('The key %r maps to multiple, inconsistent values' % (i[0],))
+        if len(items) == 1:
+            return Single(i)
+        keys = tuple(imap(itemgetter_0, items))
+        values = tuple(imap(itemgetter_1, items))
+        return tuple.__new__(cls, (keys, values, keys.index))
+    def __len__(self):
+        return len(self.__cell__(1))
+    def __iter__(self):
+        cell = self.__cell__
+        return izip(cell(0), cell(1))
+    def __eq__(self, other):
+        try:
+            if len(self) != len(other):
+                return False
+            t_other = tuple(other)
+            return all((i in t_other for i in self))
+        except Exception:
+            raise
+    def __hash__(self):
+        return hash(frozenset(self))
+    def __repr__(self):
+        return '%s(%r)' % (type(self).__name__, list(self))
+
+
 t_iter = tuple.__iter__
 t_get = tuple.__getitem__
 class Single(tuple):
@@ -269,27 +308,29 @@ class FrozenDict(tuple):
         return map(itemgetter_0, self.items())
 
     def __contains__(self, key):
-        idx = bisect_left(self.__cell__(0), hash(key))
+        cell = self.__cell__
+        idx = bisect_left(cell(0), hash(key))
         try:
-            g = self.__cell__(1)[idx]
+            g = cell(1)[idx]
             try:
                 return g[0] == key
             except TypeError:
-                return any((i[0] == key for i in g))
+                return any((item[0] == key for item in g))
         except IndexError:
             return False
 
     def __getitem__(self, key):
-        idx = bisect_left(self.__cell__(0), hash(key))
+        cell = self.__cell__
+        idx = bisect_left(cell(0), hash(key))
         try:
-            g = self.__cell__(1)[idx]
+            g = cell(1)[idx]
             try:
                 if g[0] == key:
                     return g[1]
             except TypeError:
-                for k,v in g:
-                    if k == key:
-                        return v
+                for item in g:
+                    if item[0] == key:
+                        return item[1]
         except IndexError:
             pass
         raise KeyError(key)
