@@ -1,16 +1,7 @@
 from distutils.core import setup
+from Cython.Build import cythonize
 
 setup(
-    name     = 'frozen_dict',
-    version  = '1.2',
-    url      = 'https://github.com/zelaznik/frozen_dict',
-
-    author       = 'Steve Zelaznik',
-    author_email = 'zelaznik@yahoo.com',
-
-    packages = ['frozen_dict'],
-    license  = 'MIT License',
-
-    description      = 'An immutable dictionary',
-    long_description = open('README.txt').read()
+    name = "frozen_dict",
+    ext_modules = cythonize("frozen_dict.pyx")
 )

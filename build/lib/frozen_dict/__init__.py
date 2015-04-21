@@ -71,7 +71,7 @@ from_iterable = it.chain.from_iterable
 
 itemgetter_0 = itemgetter(0)
 itemgetter_1 = itemgetter(1)
-itemgetter_0_1 = itemgetter(0,1)
+itemgetter_0_1 = itemgetter(slice(None,2))
 
 class Item(tuple):
     key   = property(itemgetter_0)
@@ -88,6 +88,7 @@ f_iter = frozenset.__iter__
 class Group(frozenset):
     ''' Container to store multiple items during a hash collision.'''
     __slots__ = ()
+    __frziter__ = frozenset.__iter__
     _length = property(len)
     ''' Length is normally 1 with type "Single".
     And in "Single" _length is a constant.
@@ -117,17 +118,17 @@ class Group(frozenset):
         return self
 
     def __iter__(self):
-        return imap(itemgetter_0_1, f_iter(self))
+        return imap(itemgetter_0_1, self.__frziter__())
         
     def items(self):
-        return imap(itemgetter_0_1, f_iter(self))
+        return imap(itemgetter_0_1, self.__frziter__())
 
     def __hash__(self):
-        frz = frozenset(self.items())
-        return hash(frz)
+        return hash(frozenset(self.items()))
 
     def __repr__(self):
         return 'Group(%r)' % (list(self),)
+
 
 t_iter = tuple.__iter__
 t_get = tuple.__getitem__
@@ -207,6 +208,13 @@ class FrozenDict(tuple):
     __cell__ = tuple.__getitem__
     __doc__ = doc_str
     __slots__ = ()
+    
+    '''Override unnecessary tuple methods.'''
+    index = None
+    count = None
+    __add__ = None
+    __mul__ = None
+    __rmul__ = None
 
     @staticmethod
     def item_adder(dct, item):
@@ -232,9 +240,9 @@ class FrozenDict(tuple):
         return dct
 
     def __new__(cls, *args, **kw):
-        if len(args) > 1:
-            raise ValueError('The variable "args" can only contain one item.')
         if args:
+            if len(args) > 1:
+                raise ValueError('The variable "args" can only contain one item.')
             try:
                 args = iteritems(args[0])
             except AttributeError:
@@ -251,10 +259,9 @@ class FrozenDict(tuple):
         hashes = tuple(imap(itemgetter_0, dct))
         length = sum(imap(_length, groups))
         try:
-            h = hash(groups)
+            return t_new(cls,(hashes,groups,length,hash(groups)))
         except TypeError:
-            h = None
-        return t_new(cls,(hashes,groups,length,h))
+            return t_new(cls,(hashes,groups,length))
 
     def items(self):
         return from_iterable(self.__cell__(1))
@@ -269,58 +276,62 @@ class FrozenDict(tuple):
         return map(itemgetter_0, self.items())
 
     def __contains__(self, key):
-        idx = bisect_left(self.__cell__(0), hash(key))
+        cell = self.__cell__
+        idx = bisect_left(cell(0), hash(key))
         try:
-            g = self.__cell__(1)[idx]
+            g = cell(1)[idx]
             try:
                 return g[0] == key
             except TypeError:
-                for k,v in g:
-                    if k == key:
-                        return True
+                return any((item[0] == key for item in g))
         except IndexError:
-            pass
-        return False
+            return False
 
     def __getitem__(self, key):
-        idx = bisect_left(self.__cell__(0), hash(key))
+        cell = self.__cell__
+        idx = bisect_left(cell(0), hash(key))
         try:
-            g = self.__cell__(1)[idx]
+            g = cell(1)[idx]
             try:
                 if g[0] == key:
                     return g[1]
             except TypeError:
-                for k,v in g:
-                    if k == key:
-                        return v
+                for item in g:
+                    if item[0] == key:
+                        return item[1]
         except IndexError:
             pass
         raise KeyError(key)
 
     def __repr__(self):
         cls = self.__class__.__name__
-        f = lambda i: '%r: %r' % i
-        _repr = ', '.join(imap(f, self.items()))
+        items = iteritems(self)
+        _repr = ', '.join(('%r: %r' % i for i in items))
         return '%s({%s})' % (cls, _repr)
-        
+
     def __eq__(self, other):
         if isinstance(other, FrozenDict):
             return self.__cell__(1) == other.__cell__(1)
+
         if not isinstance(other, Mapping):
             return False
+
         if self.__cell__(2) != len(other):
             return False
-        items = iteritems(self)
+
+        items = from_iterable(self.__cell__(1))
         try:
-            return all((other[i[0]] == i[1] for i in items))
+            return all((other[k] == v for k,v in items))
         except KeyError:
             return False
 
     def __hash__(self):
-        h = self.__cell__(3)
-        if h is not None:
-            return h
-        return hash(self.__cell__(1))
+        cell = self.__cell__
+        try:
+            return cell(3)
+        except IndexError:
+            pass
+        return hash(cell(1))
 
     def __len__(self):
         return self.__cell__(2)
@@ -346,7 +357,8 @@ if __version__ == 3:
 if __version__ == 2:
     class Python2(tuple):
         __doc__ = doc_str
-        
+        __getslice__ = None
+
         def __iter__(self):
             return imap(itemgetter_0, self.iteritems())
     
