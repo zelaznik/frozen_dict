@@ -1,6 +1,8 @@
 from frozen_dict import FrozenDict
 import unittest
-from collections import namedtuple
+from abc import ABCMeta, abstractmethod
+from operator import itemgetter, methodcaller
+from collections import namedtuple, ItemsView, KeysView, ValuesView
 
 frz_nt = namedtuple('FrozenDictTestUnit',('orig','frz','plus_one','thaw','aggKey','aggValue'))
 if 3 / 2 == 1:
@@ -8,7 +10,9 @@ if 3 / 2 == 1:
 elif 3 / 2 == 1.5:
     version = 3
 
-class Test_FrozenDict(unittest.TestCase):
+ABC = ABCMeta('ABC',(),{})
+
+class TestMapping(ABC):
     @staticmethod
     def plus_one(orig):
         #Plus one is the original dictionary with one extra item
@@ -86,8 +90,10 @@ class Test_FrozenDict(unittest.TestCase):
         self.add_unit(x=1)
         self.add_unit({'x': 1})
 
+        self.add_unit(x=3,y=0)
         self.add_unit(x=3,y=4)
         self.add_unit(x=3,y=4,z=5)
+        self.add_unit(x=3,y=4,z=6)
         self.add_unit({'x': 3,'y': 4,'z': 5})
         self.add_unit(a=3,b=4,c=0)
         self.add_unit({'a': 3,'b': 4,'c': 0})
@@ -102,7 +108,133 @@ class Test_FrozenDict(unittest.TestCase):
         
     def tearDown(self):
         del self.units
-    
+        
+class Test_BaseSet(TestMapping):
+    @abstractmethod
+    def itemcaller(self):
+        pass
+
+    def test_BaseSet_operator__and__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) & set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) & items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__or__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) | set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) | items(a.frz)
+                self.assertEqual(d, f)                
+
+    def test_BaseSet_operator__sub__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) - set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) - items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__xor__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) ^ set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) ^ items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__lt__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) < set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) < items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__le__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) <= set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) <= items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__eq__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) == set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) == items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__ne__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) != set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) != items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__gt__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) > set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) > items(a.frz)
+                self.assertEqual(d, f)
+
+    def test_BaseSet_operator__ge__(self):
+        items = self.itemcaller
+        for a in self.units:
+            for u in self.units:
+                try:
+                    d = set(items(u.orig)) >= set(items(a.orig))
+                except TypeError:
+                    continue
+                else:
+                    f = items(u.frz) >= items(a.frz)
+                self.assertEqual(d, f)
+                
+class Test_FrozenDict(TestMapping):
     def test_frozendict_reversible(self):
         for u in self.units:
             self.assertEqual(u.thaw, u.orig)
@@ -163,7 +295,39 @@ class Test_FrozenDict(unittest.TestCase):
                 ne_orig = u.orig != a.orig
                 self.assertEqual((u.frz != a.frz), ne_orig)
                 self.assertEqual((a.frz != u.frz), ne_orig)
-            
+                
+    def test_frozendict_operator__lt__(self):
+        for u in self.units:
+            u_items_view = ItemsView(u.frz)
+            for a in self.units:
+                x = (u.frz < a.frz)
+                y = (u_items_view < ItemsView(a.frz))
+                self.assertEqual(x, y)
+
+    def test_frozendict_operator__le__(self):
+        for u in self.units:
+            u_items_view = ItemsView(u.frz)
+            for a in self.units:
+                x = (u.frz <= a.frz)
+                y = (u_items_view <= ItemsView(a.frz))
+                self.assertEqual(x, y)
+
+    def test_frozendict_operator__gt__(self):
+        for u in self.units:
+            u_items_view = ItemsView(u.frz)
+            for a in self.units:
+                x = (u.frz > a.frz)
+                y = (u_items_view > ItemsView(a.frz))
+                self.assertEqual(x, y)
+
+    def test_frozendict_operator__ge__(self):
+        for u in self.units:
+            u_items_view = ItemsView(u.frz)
+            for a in self.units:
+                x = (u.frz >= a.frz)
+                y = (u_items_view >= ItemsView(a.frz))
+                self.assertEqual(x, y)
+                
     def test_frozendict_operator__len__(self):
         for u in self.units:
             self.assertEqual(len(u.orig),len(u.frz))
@@ -397,9 +561,47 @@ class Test_FrozenDict(unittest.TestCase):
     def test_frozendict_same_as_regular_dict_sorted_items(self):
         self.__test_same_as_regular_dict_sorted_methods('items')
 
+    def _keys_proxy(self, getter):
+        for u in self.units:
+            self.assertRaises(TypeError, itemgetter(0), getter(u.frz))
+            self.assertEqual(getter(u.frz), KeysView(u.orig))
+            
+    def _values_proxy(self, getter):
+        for u in self.units:
+            values = getter(u.frz)
+            self.assertRaises(TypeError, itemgetter(0), values)
+            self.assertNotEqual(getter(u.frz), values)
+            self.assertEqual(len(values), len(u.frz))
+            for k, v in u.orig.items():
+                self.assertIn(v, values)
+            self.assertNotIn(u.aggValue, values)
+            
+    def _items_proxy(self, getter):
+        for u in self.units:
+            items = getter(u.frz)
+            self.assertRaises(TypeError, itemgetter(0), items)
+            self.assertEqual(items, ItemsView(u.frz))
     
 if version == 2:
-    class Test_FrozenDict_Python2(Test_FrozenDict):
+    class Test_BaseSet_Python2(Test_BaseSet, unittest.TestCase):
+        itemcaller = methodcaller('viewitems')
+
+    class Test_FrozenDict_Python2(Test_FrozenDict, unittest.TestCase):
+        def test_frozendict_method_viewkeys(self):
+            self._keys_proxy(methodcaller('viewkeys'))
+        
+        def test_frozendict_method_viewvalues(self):
+            self._values_proxy(methodcaller('viewvalues'))
+            
+        def test_frozendict_method_viewitems(self):
+            self._items_proxy(methodcaller('viewitems'))
+
+        def test_frozendict_method_has_key(self):
+            for u in self.units:
+                for key in u.orig:
+                    self.assertEqual(u.frz.has_key(key), True)
+                self.assertEqual(u.frz.has_key(u.aggKey), False)
+
         def test_frozendict_Python2_lists_keys(self):
             for u in self.units:
                 self.assertEqual(list(u.frz.keys()), u.frz.keys())
@@ -412,40 +614,49 @@ if version == 2:
             for u in self.units:
                 self.assertEqual(list(u.frz.items()), u.frz.items())
     
-        @staticmethod
-        def iterfunc(method):
-            return len(method())
-
         def test_frozendict_Python2_generators_iterkeys(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.iterkeys)
+                self.assertRaises(TypeError, len, u.frz.iterkeys())
     
         def test_frozendict_Python2_generators_itervalues(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.itervalues)
+                self.assertRaises(TypeError, len, u.frz.itervalues())
 
         def test_frozendict_Python2_generators_iteritems(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.iteritems)
-    
+                self.assertRaises(TypeError, len, u.frz.iteritems())
+
 if version == 3:
-    class Test_FrozenDict_Python3(Test_FrozenDict):
-        @staticmethod
-        def iterfunc(method):
-            return method()[0]
+    class Test_BaseSet_Python2(Test_BaseSet, unittest.TestCase):
+        itemcaller = methodcaller('items')
+
+    class Test_FrozenDict_Python3(Test_FrozenDict, unittest.TestCase):
+        def test_frozendict_method_viewkeys(self):
+            self._keys_proxy(methodcaller('keys'))
+        
+        def test_frozendict_method_viewvalues(self):
+            self._values_proxy(methodcaller('values'))
+            
+        def test_frozendict_method_viewitems(self):
+            self._items_proxy(methodcaller('items'))
 
         def test_frozendict_Python3_generators_keys(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.keys)
-        
+                self.assertRaises(TypeError, itemgetter(0), u.frz.keys())
+
         def test_frozendict_Python3_generators_values(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.values)
+                self.assertRaises(TypeError, itemgetter(0), u.frz.values())
+                self.assertNotEqual(u.frz.values(), u.frz.values())
+                self.assertEqual(len(u.frz), len(u.frz.values()))
+                frz_values = u.frz.values()
+                for v in u.orig.values():
+                    self.assertIn(v, frz_values)
+                self.assertNotIn(u.aggValue, frz_values)
 
         def test_frozendict_Python3_generators_items(self):
             for u in self.units:
-                self.assertRaises(TypeError,self.iterfunc,u.frz.items)
+                self.assertRaises(TypeError, itemgetter(0), u.frz.items())
 
-del Test_FrozenDict
 if __name__ == '__main__':
     unittest.main()
