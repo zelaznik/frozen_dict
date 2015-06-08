@@ -1,3 +1,0 @@
-LIBRARY frozen_dict.pyd
-EXPORTS
-PyInit_frozen_dict
