@@ -41,9 +41,13 @@ def freeze(obj):
         cls = tuple
 
     try:
-        return cls(freeze(i) for i in obj)
+        itr = iter(obj)
+        is_iterable = True
     except TypeError:
-        pass
+        is_iterable = False
+        
+    if is_iterable:
+        return cls(freeze(i) for i in obj)
     
     msg = 'Unsupported type: %r' % type(obj).__name__
     raise TypeError(msg)
