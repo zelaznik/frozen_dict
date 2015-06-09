@@ -16,6 +16,17 @@ def freeze(obj):
     except TypeError:
         pass
 
+    # See if the object is iterable.  If not, raise an error
+    try:
+        itr = iter(obj)
+        is_iterable = True
+    except TypeError:
+        is_iterable = False
+        
+    if not is_iterable:
+        msg = 'Unsupported type: %r' % type(obj).__name__
+        raise TypeError(msg)
+
     try:
         #Try to see if this is a mapping
         try:
