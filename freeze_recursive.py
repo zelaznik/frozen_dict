@@ -23,7 +23,7 @@ def freeze(obj):
         except KeyError:
             pass
         is_mapping = True
-    except TypeError:
+    except (TypeError, AttributeError):
         is_mapping = False
         
     if is_mapping:
