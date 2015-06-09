@@ -1,7 +1,4 @@
 from distutils.core import setup
-from Cython.Build import cythonize
-
-from distutils.core import setup
 from distutils.extension import Extension
 
 if 3/2 == 1.5:
