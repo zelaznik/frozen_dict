@@ -21,8 +21,9 @@ def freeze(obj):
         try:
             obj[tuple(obj)]
         except KeyError:
-            pass
-        is_mapping = True
+            is_mapping = True
+        else:
+            is_mapping = False
     except (TypeError, IndexError):
         is_mapping = False
         
