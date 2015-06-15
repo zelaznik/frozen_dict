@@ -95,8 +95,8 @@ class TestMapping(ABC):
         self.add_unit(x=3,y=4,z=5)
         self.add_unit(x=3,y=4,z=6)
         self.add_unit({'x': 3,'y': 4,'z': 5})
-        self.add_unit(a=3,b=4,c=0)
-        self.add_unit({'a': 3,'b': 4,'c': 0})
+        self.add_unit(a=0,b=1,c=2,x=3)
+        self.add_unit(a=0,b=1,c=2,x=4)
 
         self.add_unit({'my_list': []})
         self.add_unit(my_list = [])
@@ -123,8 +123,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) & items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) & set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__and__(y) != NotImplemented:
+                        continue
+                    f = x & y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__or__(self):
         items = self.itemcaller
@@ -135,8 +146,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) | items(a.frz)
-                self.assertEqual(d, f)                
+                    g = items(u.frz) | set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__or__(y) != NotImplemented:
+                        continue
+                    f = x | y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__sub__(self):
         items = self.itemcaller
@@ -147,8 +169,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) - items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) - set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__sub__(y) != NotImplemented:
+                        continue
+                    f = x - y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__xor__(self):
         items = self.itemcaller
@@ -159,8 +192,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) ^ items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) ^ set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__xor__(y) != NotImplemented:
+                        continue
+                    f = x ^ y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__lt__(self):
         items = self.itemcaller
@@ -171,8 +215,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) < items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) < set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__lt__(y) != NotImplemented:
+                        continue
+                    f = x < y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__le__(self):
         items = self.itemcaller
@@ -183,8 +238,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) <= items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) <= set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__le__(y) != NotImplemented:
+                        continue
+                    f = x <= y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__eq__(self):
         items = self.itemcaller
@@ -195,8 +261,22 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) == items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) == set(items(a.frz))
+                    if d != g:
+                        print('Error:\n\t%r\n\t%r' % (u.orig, a.orig))
+                        input('pause...')
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__eq__(y) != NotImplemented:
+                        continue
+                    f = x == y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__ne__(self):
         items = self.itemcaller
@@ -207,8 +287,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) != items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) != set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__ne__(y) != NotImplemented:
+                        continue
+                    f = x != y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__gt__(self):
         items = self.itemcaller
@@ -219,8 +310,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) > items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) > set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__gt__(y) != NotImplemented:
+                        continue
+                    f = x > y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
 
     def test_BaseSet_operator__ge__(self):
         items = self.itemcaller
@@ -231,8 +333,19 @@ class Test_BaseSet(TestMapping):
                 except TypeError:
                     continue
                 else:
-                    f = items(u.frz) >= items(a.frz)
-                self.assertEqual(d, f)
+                    g = items(u.frz) >= set(items(a.frz))
+                    self.assertEqual(d, g)
+
+                try:
+                    x = set(items(u.frz))
+                    y = items(a.frz)
+                    if x.__ge__(y) != NotImplemented:
+                        continue
+                    f = x >= y
+                except TypeError:
+                    continue
+                else:
+                    self.assertEqual(d, f)
                 
 class Test_FrozenDict(TestMapping):
     def test_frozendict_reversible(self):
