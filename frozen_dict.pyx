@@ -10,36 +10,40 @@ cdef class BaseSet:
 
     def __and__(self, other):
         inner = (k for k in self if k in other)
-        return self._from_iterable(inner)
+        try:
+            return self._from_iterable(inner)
+        except AttributeError:
+            pass
+        return other._from_iterable(inner)
 
     def __sub__(self, other):
         left  = (k for k in self if k not in other)
-        return self._from_iterable(left)
+        try:
+            return self._from_iterable(left)
+        except AttributeError:
+            pass
+        return other._from_iterable(left)
 
     def __xor__(self, other):
         left  = (k for k in self if k not in other)
         right = (k for k in other if k not in self)
         it = chain(left, right)
-        return self._from_iterable(it)
+        try:
+            return self._from_iterable(it)
+        except AttributeError:
+            pass
+        return other._from_iterable(it)
 
     def __or__(self, other):
         inner = (k for k in self if k in other)
         left  = (k for k in self if k not in other)
         right = (k for k in other if k not in self)
         it = chain(left, inner, right)
-        return self._from_iterable(it)
-
-    def __rand__(self, other):
-        return (self & other)
-
-    def __ror__(self, other):
-        return (self | other)
-        
-    def __rsub__(self, other):
-        return (self - other)
-        
-    def __rxor__(self, other):
-        return (self ^ other)
+        try:
+            return self._from_iterable(it)
+        except AttributeError:
+            pass
+        return other._from_iterable(it)
 
     def __richcmp__(self, other, int flag):
         switch = (flag != 3)
@@ -101,7 +105,7 @@ cdef class BaseSet:
                     return (not switch)
             return switch
         except TypeError:
-            return NotImplemented            
+            return NotImplemented
 
 @cython.final
 cdef class Keys(BaseSet):
@@ -115,10 +119,6 @@ cdef class Keys(BaseSet):
     def __repr__(self):
         c = self.__class__.__name__
         return '%s(%s)' % (c, list(self))
-
-    property _mapping:
-        def __get__(self):
-            return self.frz
 
     def __iter__(self):
         for k in self.frz:
@@ -144,10 +144,6 @@ cdef class Items(BaseSet):
         c = self.__class__.__name__
         return '%s(%s)' % (c, list(self))
 
-    property _mapping:
-        def __get__(self):
-            return self.frz
-
     def __iter__(self):
         for k in self.frz:
             yield (k, self.frz[k])
@@ -171,10 +167,6 @@ cdef class Values:
     def __repr__(self):
         c = self.__class__.__name__
         return '%s(%s)' % (c, list(self))
-
-    property _mapping:
-        def __get__(self):
-            return self.frz
 
     def __iter__(self):
         for k in self.frz:
@@ -354,7 +346,3 @@ Mapping.register(FrozenDict)
 ValuesView.register(Values)
 ItemsView.register(Items)
 KeysView.register(Keys)
-
-
-
-
