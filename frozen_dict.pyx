@@ -218,6 +218,10 @@ cdef class FrozenDict:
     def __sizeof__(self):
         return getsizeof(self.d) + getsizeof(self.h)
 
+    def __getnewargs__(self):
+        items = tuple(self.items())
+        return (items,)
+
     cpdef _eq(self, FrozenDict other):
         return self.d == other.d
 
