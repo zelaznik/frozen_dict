@@ -1,49 +1,66 @@
 import cython
 from abc import ABCMeta
-from collections import Mapping, Set, KeysView, MappingView, ValuesView, ItemsView
+from collections import Mapping, Set, Counter, \
+KeysView, MappingView, ValuesView, ItemsView
 from itertools import chain
-from sys import getsizeof
+from sys import getsizeof, maxsize
 
-cdef class BaseSet:
-    def _from_iterable(self, it):
-        return set(it)
+cdef class BaseMapView:
+    ''' Abstract base class for keys, values
+        and items views of FrozenDict instances'''
+
+    cdef FrozenDict frz
+    def __cinit__(self, frz):
+        self.frz = frz
+
+    def __len__(self):
+        return len(self.frz)
+        
+    def __repr__(self):
+        c = self.__class__.__name__
+        return '%s(%s)' % (c, list(self))
+
+@cython.final
+cdef class Values(BaseMapView):
+    def __iter__(self):
+        for k in self.frz:
+            yield self.frz[k]
+
+    def __contains__(self, value):
+        for k in self.frz:
+            if self.frz[k] == value:
+                return True
+        return False
+
+cdef class SetView(BaseMapView):
+    cdef long long h
+    
+    def __cinit__(self):
+        self.h = -1
+
+    def __hash__(self):
+        if self.h == -1:
+            self.h = hash(frozenset(self))
+        return self.h
 
     def __and__(self, other):
         inner = (k for k in self if k in other)
-        try:
-            return self._from_iterable(inner)
-        except AttributeError:
-            pass
-        return other._from_iterable(inner)
+        return set(inner)
 
     def __sub__(self, other):
         left  = (k for k in self if k not in other)
-        try:
-            return self._from_iterable(left)
-        except AttributeError:
-            pass
-        return other._from_iterable(left)
+        return set(left)
 
     def __xor__(self, other):
         left  = (k for k in self if k not in other)
         right = (k for k in other if k not in self)
-        it = chain(left, right)
-        try:
-            return self._from_iterable(it)
-        except AttributeError:
-            pass
-        return other._from_iterable(it)
+        return set(chain(left, right))
 
     def __or__(self, other):
         inner = (k for k in self if k in other)
         left  = (k for k in self if k not in other)
         right = (k for k in other if k not in self)
-        it = chain(left, inner, right)
-        try:
-            return self._from_iterable(it)
-        except AttributeError:
-            pass
-        return other._from_iterable(it)
+        return set(chain(left, inner, right))
 
     def __richcmp__(self, other, int flag):
         switch = (flag != 3)
@@ -106,44 +123,18 @@ cdef class BaseSet:
             return switch
         except TypeError:
             return NotImplemented
-
+    
 @cython.final
-cdef class Keys(BaseSet):
-    cdef FrozenDict frz
-    def __cinit__(self, frz):
-        self.frz = frz
-
-    def __len__(self):
-        return len(self.frz)
-
-    def __repr__(self):
-        c = self.__class__.__name__
-        return '%s(%s)' % (c, list(self))
-
+cdef class Keys(SetView):
     def __iter__(self):
         for k in self.frz:
             yield k
 
     def __contains__(self, key):
-        try:
-            return (key in self.frz)
-        except TypeError:
-            return False
+        return (key in self.frz)
 
 @cython.final
-cdef class Items(BaseSet):
-    cdef FrozenDict frz
-
-    def __cinit__(self, frz):
-        self.frz = frz
-
-    def __len__(self):
-        return len(self.frz)
-
-    def __repr__(self):
-        c = self.__class__.__name__
-        return '%s(%s)' % (c, list(self))
-
+cdef class Items(SetView):
     def __iter__(self):
         for k in self.frz:
             yield (k, self.frz[k])
@@ -154,29 +145,6 @@ cdef class Items(BaseSet):
             return self.frz[k] == v
         except Exception:
             return False
-
-@cython.final
-cdef class Values:
-    cdef FrozenDict frz
-    def __cinit__(self, frz):
-        self.frz = frz
-
-    def __len__(self):
-        return len(self.frz)
-
-    def __repr__(self):
-        c = self.__class__.__name__
-        return '%s(%s)' % (c, list(self))
-
-    def __iter__(self):
-        for k in self.frz:
-            yield self.frz[k]
-
-    def __contains__(self, value):
-        for k in self.frz:
-            if self.frz[k] == value:
-                return True
-        return False
 
 cdef class FrozenDict:
     ''' An immutable dictionary.  A builtin dictionary is wrapped
@@ -206,18 +174,23 @@ cdef class FrozenDict:
 
     def __hash__(self):
         if self.h == -1:
-            items = ((k,self[k]) for k in self)
-            self.h = hash(frozenset(items))
+            # The key-value pairs are reversed
+            # so that hash(self) and hash(self.items())
+            # will not collide with each other
+            pairs = ((self[k],k) for k in self)
+            self.h = hash(frozenset(pairs))
+            self.h ^= maxsize
+            if self.h == -1:
+                self.h = -2
         return self.h
 
     def __repr__(self):
         c = self.__class__.__name__
-        i = ('%r: %r' % (k, self[k]) for k in self)
-        return '%s({%s})' % (c, ', '.join(i))
+        return '%s(%r)' % (c, self.d)
 
     def __sizeof__(self):
         return getsizeof(self.d) + getsizeof(self.h)
-
+        
     def __getnewargs__(self):
         items = tuple(self.items())
         return (items,)
@@ -350,3 +323,20 @@ Mapping.register(FrozenDict)
 ValuesView.register(Values)
 ItemsView.register(Items)
 KeysView.register(Keys)
+
+cdef class OrderedMap(FrozenDict):
+    ''' A FrozenDict subclass where the item order is preserved.'''
+    cdef object key_order
+    def __cinit__(self, iterable):
+        keys, values = zip(*iterable)
+        d = dict(zip(keys, values))
+        FrozenDict.__init__(self, d)
+        self.key_order = keys
+        
+    def __iter__(self):
+        return (k for k in self.key_order)
+        
+    def __repr__(self):
+        c = self.__class__.__name__
+        i = list(self.items())
+        return '%s(%s)' % (c, i)
