@@ -5,8 +5,7 @@ def freeze(obj):
         FrozenDict objects, lists into tuples, and sets
         into frozensets.
 
-        THIS FUNCTION IS IN BETA AND HAS NOT BEEN
-        EXTENSIVELY TESTED.
+        Can also be used to turn JSON data into a hasahable value.
     '''
 
     try:
