@@ -1,3 +1,5 @@
+# FrozenDict
+
 Summary:
 - Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
 - Most implementations of FrozenDict simply subclass dict, or wrap a thin object around one.
