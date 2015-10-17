@@ -4,6 +4,12 @@ Summary:
 - Behaves in most ways like a regular dictionary, except that it's immutable, TRULY immutable.
 - Most implementations of FrozenDict simply subclass dict, or wrap a thin object around one.
 - This implemtation does the wrapping at the C level, making it impossible to change from Python.
+- Use it like a regular dictionary, such as in this example:
+
+``` python
+from frozen_dict import FrozenDict
+f = FrozenDict({'x':3, 'y':4, 'z': 5})
+```
 
 Features:
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
