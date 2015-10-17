@@ -10,22 +10,22 @@ from frozen_dict import FrozenDict
 f = FrozenDict({'x':3, 'y':4, 'z': 5})
 ```
 
-# Features
+### Features
 - Hashable like a tuple.  It returns a hash if and only if its values are hashable.
 - Works with both Python 2 and Python3.
 - Supports bi-directional conversion to and from regular dictionaries
 - A FrozenDict is created with the same arguments that instantiate a regular dict.
 
-# Speed
+### Speed
 - Lookup times are O(1)
 - Just as fast as regular dictionaries.  40 - 60 nanoseconds per lookup.
 - Designed to store keyword arguments for memoized function calls.
 - 40% Faster to compare two FrozenDicts than two corresponding frozensets.
 
-# Memory
+### Memory
 - Uses 50-60 more bytes than would be required with a regular dictionary.
 
-# Hash Algorithm
+### Hash Algorithm
 - Hashes a frozenset of the dictionary items, with the key-value tuples reversed
 - The hash calculation is deferred until needed and then cached, like a string.
 - The Items view of a frozen dict hashes and compares equal with a frozenet.
