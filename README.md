@@ -38,4 +38,4 @@ Recursion:
 - mappings such as dictionaries become FrozenDict instances
 
 ## License
-FrozenDict is released under the [MIT License](http://www.opensource.org/licenses/MIT).
+- FrozenDict is released under the [MIT License](http://www.opensource.org/licenses/MIT).
