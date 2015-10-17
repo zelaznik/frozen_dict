@@ -7,7 +7,7 @@
 
 ``` python
 from frozen_dict import FrozenDict
-f = FrozenDict({'x':3, 'y':4, 'z': 5})
+f = FrozenDict({'x':3, 'y': 4, 'z': 5})
 ```
 
 ### Features
@@ -41,12 +41,20 @@ def __hash__(self):
     return self.h
 ```
 
-Recursion:
+### Recursion:
 - A frozen dict is not recursive by default, but an auxilary function "freeze" does do it.
 - "freeze" turns unhashable objects into generic python immutable types
 - sequences such as lists become tuples
 - unordered collections such as sets become frozenset
 - mappings such as dictionaries become FrozenDict instances
+
+``` python
+ [in] >>> from deep_freeze imoprt freeze
+ [in] >>> dct = {'x': 3, 'y': 4, 'z': {'a': 0, 'b': [3,1,{4,1},[5,9]]}}
+ [in] >>> frz = freeze(dct)
+ [in] >>> print(frz)
+[out] >>> FrozenDict({'y': 4, 'x': 3, 'z': FrozenDict({'a': 0, 'b': (3, 1, frozenset([1, 4]), (5, 9))})})
+```
 
 ## License
 - FrozenDict is released under the [MIT License](http://www.opensource.org/licenses/MIT).
