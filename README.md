@@ -36,3 +36,6 @@ Recursion:
 - sequences such as lists become tuples
 - unordered collections such as sets become frozenset
 - mappings such as dictionaries become FrozenDict instances
+
+## License
+FrozenDict is released under the [MIT License](http://www.opensource.org/licenses/MIT).
